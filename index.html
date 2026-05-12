@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>بنيان - متعقب مصروفات البناء</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <!-- Ionicons -->
+    <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+    <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Export Libraries -->
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="dark-theme">
+    <div class="app-container">
+        <!-- Sidebar/Navigation for Desktop (Optional) & Mobile Bottom Nav -->
+        <nav class="bottom-nav">
+            <a href="#" class="nav-item active" data-view="dashboard">
+                <ion-icon name="grid-outline"></ion-icon>
+                <span>الرئيسية</span>
+            </a>
+            <a href="#" class="nav-item" data-view="categories">
+                <ion-icon name="list-outline"></ion-icon>
+                <span>البنود</span>
+            </a>
+            <a href="#" class="nav-item" data-view="reports">
+                <ion-icon name="pie-chart-outline"></ion-icon>
+                <span>التقارير</span>
+            </a>
+            <a href="#" class="nav-item" data-view="settings">
+                <ion-icon name="settings-outline"></ion-icon>
+                <span>الإعدادات</span>
+            </a>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <header class="app-header">
+                <div class="header-info">
+                    <h1>بُنيان</h1>
+                    <p id="current-view-title">نظرة عامة</p>
+                </div>
+                <div class="header-actions">
+                    <button class="icon-btn" id="add-expense-btn">
+                        <ion-icon name="add-outline"></ion-icon>
+                    </button>
+                </div>
+            </header>
+
+            <section id="view-dashboard" class="view active">
+                <div class="stats-grid">
+                    <div class="stat-card total-budget">
+                        <span class="label">إجمالي المصروفات</span>
+                        <h2 class="value" id="total-expense-val">0.00</h2>
+                        <span class="currency">د.ك</span>
+                    </div>
+                </div>
+
+                <div class="section-title">
+                    <h3>أحدث العمليات</h3>
+                    <button class="text-btn">عرض الكل</button>
+                </div>
+                <div class="recent-transactions" id="recent-list">
+                    <!-- Transactions will be injected here -->
+                    <div class="empty-state">لا توجد مصروفات مضافة بعد.</div>
+                </div>
+            </section>
+
+            <section id="view-categories" class="view">
+                <div class="category-list" id="category-list-container">
+                    <!-- Categories like Black Structure, Finishing, etc. -->
+                </div>
+            </section>
+
+            <section id="view-reports" class="view">
+                <div class="chart-container">
+                    <canvas id="categoryChart"></canvas>
+                </div>
+                <div class="report-details" id="report-details-list">
+                    <!-- Breakdown by category -->
+                </div>
+            </section>
+
+            <section id="view-settings" class="view">
+                <div class="settings-group">
+                    <h3>بيانات المشروع</h3>
+                    <div class="setting-item">
+                        <span>اسم المشروع</span>
+                        <input type="text" value="قسيمة 402" id="project-name-input">
+                    </div>
+                    <div class="setting-item">
+                        <span>العملة</span>
+                        <input type="text" value="د.ك" id="currency-input">
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <h3>النسخ الاحتياطي والتصدير</h3>
+                    <div class="export-grid">
+                        <button class="action-btn" id="export-excel">
+                            <ion-icon name="document-text-outline"></ion-icon>
+                            <span>تصدير Excel</span>
+                        </button>
+                        <button class="action-btn" id="export-pdf">
+                            <ion-icon name="download-outline"></ion-icon>
+                            <span>تصدير PDF</span>
+                        </button>
+                        <button class="action-btn" id="export-json">
+                            <ion-icon name="cloud-upload-outline"></ion-icon>
+                            <span>نسخة احتياطية</span>
+                        </button>
+                        <button class="action-btn" id="import-trigger">
+                            <ion-icon name="cloud-download-outline"></ion-icon>
+                            <span>استيراد بيانات</span>
+                        </button>
+                        <input type="file" id="import-file" style="display: none;" accept=".json">
+                    </div>
+                </div>
+
+                <button class="danger-btn" id="reset-data">مسح جميع البيانات</button>
+            </section>
+        </main>
+
+        <!-- Modals -->
+        <div class="modal" id="add-expense-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>إضافة مصروف جديد</h2>
+                    <button class="close-modal"><ion-icon name="close-outline"></ion-icon></button>
+                </div>
+                <form id="expense-form">
+                    <div class="form-group">
+                        <label>البند الأساسي</label>
+                        <select id="exp-category" required>
+                            <!-- Dynamically populated -->
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>المرحلة</label>
+                        <select id="exp-stage" required>
+                            <!-- Dynamically populated based on category -->
+                        </select>
+                        <button type="button" class="inline-add" id="add-new-stage-btn">+ إضافة مرحلة جديدة</button>
+                    </div>
+                    <div class="form-group">
+                        <label>نوع المصروف (حديد، خرسانة، إلخ)</label>
+                        <input type="text" id="exp-item" placeholder="مثلاً: حديد" required>
+                    </div>
+                    <div class="form-group">
+                        <label>المبلغ</label>
+                        <input type="number" step="0.01" id="exp-amount" placeholder="0.00" required>
+                    </div>
+                    <div class="form-group">
+                        <label>ملاحظات (اختياري)</label>
+                        <textarea id="exp-notes"></textarea>
+                    </div>
+                    <button type="submit" class="submit-btn">حفظ المصروف</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Add Category/Stage Modal -->
+        <div class="modal" id="add-sub-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="sub-modal-title">إضافة مرحلة</h2>
+                    <button class="close-modal"><ion-icon name="close-outline"></ion-icon></button>
+                </div>
+                <div class="form-group">
+                    <label id="sub-modal-label">اسم المرحلة</label>
+                    <input type="text" id="sub-modal-input" required>
+                </div>
+                <button id="save-sub-btn" class="submit-btn">إضافة</button>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js');
+        }
+    </script>
+</body>
+</html>
