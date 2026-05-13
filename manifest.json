@@ -3,6 +3,7 @@
     "short_name": "بنيان",
     "description": "تطبيق احترافي لتتبع مصروفات بناء منزلك وتنظيم الميزانية والبنود.",
     "start_url": "./index.html",
+    "id": "/house-tracker/",
     "display": "standalone",
     "background_color": "#0f172a",
     "theme_color": "#f59e0b",
