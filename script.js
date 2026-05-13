@@ -30,6 +30,7 @@ const categoryChartCanvas = document.getElementById('categoryChart');
 
 let categoryChart = null;
 let editingExpenseId = null;
+let expandedCategoryId = null;
 
 // Initialize App
 function init() {
@@ -175,17 +176,16 @@ function renderDashboard() {
 function renderCategories() {
     categoryListContainer.innerHTML = '';
     appData.categories.forEach((cat, catIdx) => {
+        const isExpanded = expandedCategoryId === cat.id;
         const catExpenses = appData.expenses.filter(e => e.categoryId === cat.id);
         const total = catExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0);
         
         const card = document.createElement('div');
-        card.className = 'category-card';
+        card.className = `category-card ${isExpanded ? 'expanded' : ''}`;
+        card.setAttribute('data-id', cat.id);
         card.innerHTML = `
-            <div class="category-header" onclick="this.parentElement.classList.toggle('expanded')">
-                <div class="cat-reorder">
-                    <button onclick="event.stopPropagation(); moveCategory('${cat.id}', 'up')"><ion-icon name="chevron-up-outline"></ion-icon></button>
-                    <button onclick="event.stopPropagation(); moveCategory('${cat.id}', 'down')"><ion-icon name="chevron-down-outline"></ion-icon></button>
-                </div>
+            <div class="category-header">
+                <div class="drag-handle"><ion-icon name="reorder-two-outline"></ion-icon></div>
                 <div class="cat-icon"><ion-icon name="${cat.icon}"></ion-icon></div>
                 <div class="cat-details">
                     <h4>${cat.name}</h4>
@@ -200,17 +200,14 @@ function renderCategories() {
                 <ion-icon name="chevron-down-outline" style="margin-right: 10px;"></ion-icon>
             </div>
             <div class="category-body">
-                <div class="stage-list">
+                <div class="stage-list" data-cat-id="${cat.id}">
                     ${cat.stages.map((stage, idx) => {
                         const stageExpenses = catExpenses.filter(e => e.stage === stage);
                         const stageTotal = stageExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0);
                         return `
-                        <div class="stage-item">
+                        <div class="stage-item" data-name="${stage}">
                             <div style="display: flex; align-items: center; gap: 8px;">
-                                <div class="cat-reorder" style="flex-direction: row; gap: 5px;">
-                                    <button onclick="event.stopPropagation(); moveStage('${cat.id}', ${idx}, 'up')"><ion-icon name="caret-up-outline"></ion-icon></button>
-                                    <button onclick="event.stopPropagation(); moveStage('${cat.id}', ${idx}, 'down')"><ion-icon name="caret-down-outline"></ion-icon></button>
-                                </div>
+                                <div class="drag-handle" style="font-size: 1rem;"><ion-icon name="reorder-two-outline"></ion-icon></div>
                                 <div style="display: flex; flex-direction: column;">
                                     <span style="font-weight: 500;">${stage}</span>
                                     <span class="stage-total">${stageTotal.toFixed(2)} ${appData.currency}</span>
@@ -231,32 +228,51 @@ function renderCategories() {
                 ` : ''}
             </div>
         `;
+
+        const header = card.querySelector('.category-header');
+        header.onclick = () => {
+            const wasExpanded = card.classList.contains('expanded');
+            document.querySelectorAll('.category-card').forEach(c => c.classList.remove('expanded'));
+            if (!wasExpanded) {
+                card.classList.add('expanded');
+                expandedCategoryId = cat.id;
+            } else {
+                expandedCategoryId = null;
+            }
+        };
+
         categoryListContainer.appendChild(card);
+    });
+
+    // Initialize Sortable for categories
+    new Sortable(categoryListContainer, {
+        animation: 150,
+        handle: '.drag-handle',
+        onEnd: function () {
+            const newOrder = Array.from(categoryListContainer.querySelectorAll('.category-card')).map(el => el.getAttribute('data-id'));
+            appData.categories.sort((a, b) => newOrder.indexOf(a.id) - newOrder.indexOf(b.id));
+            saveData();
+            // We don't re-render here to prevent losing expanded state/flickering
+        }
+    });
+
+    // Initialize Sortable for stages
+    document.querySelectorAll('.stage-list').forEach(list => {
+        const catId = list.getAttribute('data-cat-id');
+        new Sortable(list, {
+            animation: 150,
+            handle: '.drag-handle',
+            onEnd: function () {
+                const cat = appData.categories.find(c => c.id === catId);
+                const newOrder = Array.from(list.querySelectorAll('.stage-item')).map(el => el.getAttribute('data-name'));
+                cat.stages.sort((a, b) => newOrder.indexOf(a) - newOrder.indexOf(b));
+                saveData();
+            }
+        });
     });
 }
 
-window.moveCategory = (catId, direction) => {
-    const idx = appData.categories.findIndex(c => c.id === catId);
-    if (direction === 'up' && idx > 0) {
-        [appData.categories[idx], appData.categories[idx-1]] = [appData.categories[idx-1], appData.categories[idx]];
-    } else if (direction === 'down' && idx < appData.categories.length - 1) {
-        [appData.categories[idx], appData.categories[idx+1]] = [appData.categories[idx+1], appData.categories[idx]];
-    }
-    saveData();
-    renderCategories();
-};
-
-window.moveStage = (catId, stageIdx, direction) => {
-    const cat = appData.categories.find(c => c.id === catId);
-    if (!cat) return;
-    if (direction === 'up' && stageIdx > 0) {
-        [cat.stages[stageIdx], cat.stages[stageIdx-1]] = [cat.stages[stageIdx-1], cat.stages[stageIdx]];
-    } else if (direction === 'down' && stageIdx < cat.stages.length - 1) {
-        [cat.stages[stageIdx], cat.stages[stageIdx+1]] = [cat.stages[stageIdx+1], cat.stages[stageIdx]];
-    }
-    saveData();
-    renderCategories();
-};
+// Remove old moveCategory and moveStage
 
 function renderReports() {
     if (categoryChart) categoryChart.destroy();

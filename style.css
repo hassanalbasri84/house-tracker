@@ -272,27 +272,17 @@ body {
     color: var(--text-secondary);
 }
 
-.cat-reorder {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    margin-right: 5px;
-}
-
-.cat-reorder button {
-    background: none;
-    border: none;
+.drag-handle {
     color: var(--text-secondary);
     font-size: 1.2rem;
-    cursor: pointer;
-    line-height: 1;
+    cursor: grab;
     display: flex;
     align-items: center;
-    justify-content: center;
+    opacity: 0.5;
 }
 
-.cat-reorder button:hover {
-    color: var(--accent-color);
+.category-card.expanded .drag-handle {
+    display: flex;
 }
 
 .cat-actions {
