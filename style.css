@@ -11,6 +11,18 @@
     --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
+.stage-total {
+    font-size: 0.75rem;
+    color: var(--accent-color);
+    font-weight: 600;
+}
+
+.modal-footer-btns {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -211,18 +223,22 @@ body {
     font-style: italic;
 }
 
-/* Categories List */
+/* Categories List & Accordion */
 .category-card {
     background: var(--card-bg);
     margin-bottom: 1rem;
-    padding: 1.25rem;
     border-radius: 20px;
+    border: 1px solid var(--border-color);
+    transition: 0.3s;
+    overflow: hidden;
+}
+
+.category-header {
+    padding: 1.25rem;
     display: flex;
     align-items: center;
     gap: 1rem;
     cursor: pointer;
-    border: 1px solid var(--border-color);
-    transition: 0.3s;
 }
 
 .category-card:hover {
@@ -239,6 +255,7 @@ body {
     align-items: center;
     justify-content: center;
     font-size: 1.2rem;
+    flex-shrink: 0;
 }
 
 .cat-details {
@@ -253,6 +270,85 @@ body {
 .cat-details .cat-stats {
     font-size: 0.8rem;
     color: var(--text-secondary);
+}
+
+.cat-reorder {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-right: 5px;
+}
+
+.cat-reorder button {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.2rem;
+    cursor: pointer;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cat-reorder button:hover {
+    color: var(--accent-color);
+}
+
+.cat-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.cat-actions button {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: 0.2s;
+    padding: 5px;
+}
+
+.cat-actions button:hover {
+    color: var(--accent-color);
+}
+
+/* Accordion body */
+.category-body {
+    padding: 0 1.25rem 1.25rem;
+    display: none;
+    border-top: 1px solid var(--border-color);
+    background: rgba(0,0,0,0.2);
+}
+.category-card.expanded .category-body {
+    display: block;
+}
+
+.stage-list {
+    margin-top: 1rem;
+}
+
+.stage-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0;
+    border-bottom: 1px dashed var(--border-color);
+    font-size: 0.9rem;
+}
+.stage-item:last-child { border-bottom: none; }
+
+.stage-actions button {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.2rem;
+    margin-right: 0.5rem;
+    cursor: pointer;
+}
+.stage-actions button:hover {
+    color: var(--accent-color);
 }
 
 /* Bottom Nav */

@@ -45,7 +45,7 @@
         <main class="main-content">
             <header class="app-header">
                 <div class="header-info">
-                    <h1>بُنيان</h1>
+                    <h1 id="project-title-display">بُنيان</h1>
                     <p id="current-view-title">نظرة عامة</p>
                 </div>
                 <div class="header-actions">
@@ -60,12 +60,12 @@
                     <div class="stat-card total-budget">
                         <span class="label">إجمالي المصروفات</span>
                         <h2 class="value" id="total-expense-val">0.00</h2>
-                        <span class="currency">د.ك</span>
+                        <span class="currency" id="currency-display">د.ك</span>
                     </div>
                 </div>
 
                 <div class="section-title">
-                    <h3>أحدث العمليات</h3>
+                    <h3>المصروفات</h3>
                     <button class="text-btn">عرض الكل</button>
                 </div>
                 <div class="recent-transactions" id="recent-list">
@@ -75,8 +75,12 @@
             </section>
 
             <section id="view-categories" class="view">
+                <button class="action-btn" id="add-main-cat-btn" style="width: 100%; margin-bottom: 1.5rem; flex-direction: row; justify-content: center; padding: 1rem;">
+                    <ion-icon name="add-circle-outline" style="font-size: 1.5rem;"></ion-icon>
+                    <span style="font-size: 1.1rem;">إضافة بند رئيسي جديد</span>
+                </button>
                 <div class="category-list" id="category-list-container">
-                    <!-- Categories like Black Structure, Finishing, etc. -->
+                    <!-- Categories -->
                 </div>
             </section>
 
@@ -91,41 +95,59 @@
 
             <section id="view-settings" class="view">
                 <div class="settings-group">
-                    <h3>بيانات المشروع</h3>
+                    <h3>إدارة المشاريع (الفلل)</h3>
+                    <div class="setting-item">
+                        <span>المشروع الحالي</span>
+                        <select id="project-selector" style="width: 50%; background: var(--bg-color); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem; border-radius: 8px;"></select>
+                    </div>
+                    <button class="action-btn" id="add-project-btn" style="width: 100%; margin-top: 1rem; flex-direction: row; justify-content: center; padding: 0.8rem;">
+                        <ion-icon name="add-outline"></ion-icon>
+                        <span style="font-size: 1rem;">إضافة مشروع (فيلا) جديد</span>
+                    </button>
+                </div>
+
+                <div class="settings-group">
+                    <h3>إعدادات المشروع</h3>
                     <div class="setting-item">
                         <span>اسم المشروع</span>
-                        <input type="text" value="قسيمة 402" id="project-name-input">
+                        <input type="text" id="project-name-input">
                     </div>
                     <div class="setting-item">
                         <span>العملة</span>
-                        <input type="text" value="د.ك" id="currency-input">
+                        <input type="text" id="currency-input">
                     </div>
                 </div>
 
                 <div class="settings-group">
-                    <h3>النسخ الاحتياطي والتصدير</h3>
+                    <h3>تصدير واستيراد البيانات</h3>
                     <div class="export-grid">
                         <button class="action-btn" id="export-excel">
                             <ion-icon name="document-text-outline"></ion-icon>
                             <span>تصدير Excel</span>
                         </button>
+                        <button class="action-btn" id="import-excel-trigger">
+                            <ion-icon name="document-attach-outline"></ion-icon>
+                            <span>استيراد Excel</span>
+                        </button>
+                        <input type="file" id="import-excel-file" style="display: none;" accept=".xlsx, .xls">
+                        
                         <button class="action-btn" id="export-pdf">
                             <ion-icon name="download-outline"></ion-icon>
                             <span>تصدير PDF</span>
                         </button>
                         <button class="action-btn" id="export-json">
                             <ion-icon name="cloud-upload-outline"></ion-icon>
-                            <span>نسخة احتياطية</span>
+                            <span>تصدير Backup</span>
                         </button>
-                        <button class="action-btn" id="import-trigger">
+                        <button class="action-btn" id="import-trigger" style="grid-column: span 2;">
                             <ion-icon name="cloud-download-outline"></ion-icon>
-                            <span>استيراد بيانات</span>
+                            <span>استعادة Backup</span>
                         </button>
                         <input type="file" id="import-file" style="display: none;" accept=".json">
                     </div>
                 </div>
 
-                <button class="danger-btn" id="reset-data">مسح جميع البيانات</button>
+                <button class="danger-btn" id="reset-data">مسح جميع البيانات والمشاريع</button>
             </section>
         </main>
 
@@ -133,20 +155,18 @@
         <div class="modal" id="add-expense-modal">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h2>إضافة مصروف جديد</h2>
-                    <button class="close-modal"><ion-icon name="close-outline"></ion-icon></button>
+                    <h2 id="modal-expense-title">إضافة مصروف جديد</h2>
+                    <button class="close-modal" type="button"><ion-icon name="close-outline"></ion-icon></button>
                 </div>
                 <form id="expense-form">
                     <div class="form-group">
                         <label>البند الأساسي</label>
                         <select id="exp-category" required>
-                            <!-- Dynamically populated -->
                         </select>
                     </div>
                     <div class="form-group">
                         <label>المرحلة</label>
                         <select id="exp-stage" required>
-                            <!-- Dynamically populated based on category -->
                         </select>
                         <button type="button" class="inline-add" id="add-new-stage-btn">+ إضافة مرحلة جديدة</button>
                     </div>
@@ -162,23 +182,12 @@
                         <label>ملاحظات (اختياري)</label>
                         <textarea id="exp-notes"></textarea>
                     </div>
-                    <button type="submit" class="submit-btn">حفظ المصروف</button>
+                    <div class="modal-footer-btns">
+                        <button type="submit" class="submit-btn" style="margin-top: 0;">حفظ المصروف</button>
+                        <button type="button" class="action-btn close-modal" style="margin-top: 0; background: var(--bg-color); flex: 1;">إلغاء</button>
+                    </div>
+                    <button type="button" class="danger-btn" id="delete-expense-btn" style="display: none; margin-top: 10px; padding: 0.8rem;">حذف هذا المصروف</button>
                 </form>
-            </div>
-        </div>
-
-        <!-- Add Category/Stage Modal -->
-        <div class="modal" id="add-sub-modal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2 id="sub-modal-title">إضافة مرحلة</h2>
-                    <button class="close-modal"><ion-icon name="close-outline"></ion-icon></button>
-                </div>
-                <div class="form-group">
-                    <label id="sub-modal-label">اسم المرحلة</label>
-                    <input type="text" id="sub-modal-input" required>
-                </div>
-                <button id="save-sub-btn" class="submit-btn">إضافة</button>
             </div>
         </div>
     </div>
