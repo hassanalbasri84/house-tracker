@@ -7,6 +7,7 @@ const ASSETS = [
     './manifest.json',
     './icon.png',
     './icon_192.png',
+    './screenshot1.png',
     'https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Tajawal:wght@300;400;500;700&display=swap',
     'https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js',
     'https://cdn.jsdelivr.net/npm/chart.js'
