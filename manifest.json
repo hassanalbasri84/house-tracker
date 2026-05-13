@@ -25,7 +25,7 @@
     "screenshots": [
         {
             "src": "screenshot1.png",
-            "sizes": "390x844",
+            "sizes": "625x938",
             "type": "image/png",
             "form_factor": "narrow",
             "label": "واجهة لوحة التحكم"
