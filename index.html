@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,7 +8,9 @@
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Tajawal:wght@300;400;500;700&display=swap"
+        rel="stylesheet">
     <!-- Ionicons -->
     <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
     <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
@@ -21,6 +24,7 @@
     <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="style.css">
 </head>
+
 <body class="dark-theme">
     <div class="app-container">
         <!-- Sidebar/Navigation for Desktop (Optional) & Mobile Bottom Nav -->
@@ -59,10 +63,18 @@
 
             <section id="view-dashboard" class="view active">
                 <div class="stats-grid">
-                    <div class="stat-card total-budget">
+                    <div class="stat-card total-budget" style="background: linear-gradient(135deg, var(--accent-color), #2dd4bf);">
                         <span class="label">إجمالي المصروفات</span>
                         <h2 class="value" id="total-expense-val">0.00</h2>
                         <span class="currency" id="currency-display">د.ك</span>
+                    </div>
+                    <div class="stat-card" style="background: var(--card-bg); border: 1px solid var(--border-color);">
+                        <span class="label" style="color: var(--text-secondary);">الميزانية المخصصة</span>
+                        <h2 class="value" id="total-budget-val" style="color: var(--text-primary); font-size: 1.5rem;">0.00</h2>
+                    </div>
+                    <div class="stat-card" style="background: var(--card-bg); border: 1px solid var(--border-color);">
+                        <span class="label" style="color: var(--text-secondary);">المبلغ المتبقي</span>
+                        <h2 class="value" id="remaining-budget-val" style="color: var(--text-primary); font-size: 1.5rem;">0.00</h2>
                     </div>
                 </div>
 
@@ -77,13 +89,15 @@
             </section>
 
             <section id="view-categories" class="view">
-                <button class="action-btn" id="add-main-cat-btn" style="width: 100%; margin-bottom: 1.5rem; flex-direction: row; justify-content: center; padding: 1rem;">
+                <button class="action-btn" id="add-main-cat-btn"
+                    style="width: 100%; margin-bottom: 1.5rem; flex-direction: row; justify-content: center; padding: 1rem;">
                     <ion-icon name="add-circle-outline" style="font-size: 1.5rem;"></ion-icon>
                     <span style="font-size: 1.1rem;">إضافة بند رئيسي جديد</span>
                 </button>
                 <div class="category-list" id="category-list-container">
                     <!-- Categories -->
                 </div>
+                <button class="text-btn" id="reset-to-standard-cats-btn" style="width: 100%; margin-top: 20px; font-size: 0.8rem; opacity: 0.7;">+ استيراد جميع البنود القياسية لهذا المشروع</button>
             </section>
 
             <section id="view-reports" class="view">
@@ -100,9 +114,11 @@
                     <h3>إدارة المشاريع (الفلل)</h3>
                     <div class="setting-item">
                         <span>المشروع الحالي</span>
-                        <select id="project-selector" style="width: 50%; background: var(--bg-color); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem; border-radius: 8px;"></select>
+                        <select id="project-selector"
+                            style="width: 50%; background: var(--bg-color); border: 1px solid var(--border-color); color: var(--text-primary); padding: 0.5rem; border-radius: 8px;"></select>
                     </div>
-                    <button class="action-btn" id="add-project-btn" style="width: 100%; margin-top: 1rem; flex-direction: row; justify-content: center; padding: 0.8rem;">
+                    <button class="action-btn" id="add-project-btn"
+                        style="width: 100%; margin-top: 1rem; flex-direction: row; justify-content: center; padding: 0.8rem;">
                         <ion-icon name="add-outline"></ion-icon>
                         <span style="font-size: 1rem;">إضافة مشروع (فيلا) جديد</span>
                     </button>
@@ -118,6 +134,11 @@
                         <span>العملة</span>
                         <input type="text" id="currency-input">
                     </div>
+                    <div class="setting-item">
+                        <span>الميزانية المخصصة</span>
+                        <input type="number" id="budget-input" placeholder="0.00" min="0" step="0.01">
+                    </div>
+                    <button class="danger-btn" id="delete-current-project-btn" style="margin-top: 15px; border-style: dashed; background: rgba(239, 68, 68, 0.05);">حذف المشروع الحالي فقط</button>
                 </div>
 
                 <div class="settings-group">
@@ -132,7 +153,7 @@
                             <span>استيراد Excel</span>
                         </button>
                         <input type="file" id="import-excel-file" style="display: none;" accept=".xlsx, .xls">
-                        
+
                         <button class="action-btn" id="export-pdf">
                             <ion-icon name="download-outline"></ion-icon>
                             <span>تصدير PDF</span>
@@ -146,6 +167,22 @@
                             <span>استعادة Backup</span>
                         </button>
                         <input type="file" id="import-file" style="display: none;" accept=".json">
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <h3>سلة المحذوفات</h3>
+                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 10px;">استرجاع ما تم حذفه مؤخراً</p>
+                    <div id="trash-list" style="display: flex; flex-direction: column; gap: 8px;">
+                        <!-- Trash items will be injected here -->
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <h3>النسخ الاحتياطية التلقائية</h3>
+                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 10px;">يتم حفظ نسخة تلقائياً كل 5 إضافات (آخر 10 نسخ)</p>
+                    <div id="auto-backups-list" style="display: flex; flex-direction: column; gap: 8px;">
+                        <!-- Backups will be injected here -->
                     </div>
                 </div>
 
@@ -186,9 +223,11 @@
                     </div>
                     <div class="modal-footer-btns">
                         <button type="submit" class="submit-btn" style="margin-top: 0;">حفظ المصروف</button>
-                        <button type="button" class="action-btn close-modal" style="margin-top: 0; background: var(--bg-color); flex: 1;">إلغاء</button>
+                        <button type="button" class="action-btn close-modal"
+                            style="margin-top: 0; background: var(--bg-color); flex: 1;">إلغاء</button>
                     </div>
-                    <button type="button" class="danger-btn" id="delete-expense-btn" style="display: none; margin-top: 10px; padding: 0.8rem;">حذف هذا المصروف</button>
+                    <button type="button" class="danger-btn" id="delete-expense-btn"
+                        style="display: none; margin-top: 10px; padding: 0.8rem;">حذف هذا المصروف</button>
                 </form>
             </div>
         </div>
@@ -200,4 +239,5 @@
         }
     </script>
 </body>
+
 </html>

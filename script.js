@@ -1,16 +1,25 @@
-// Data Model Initial Structure
 const defaultCategories = [
-    { id: 'cat_5', name: 'المكاتب والرسوم', icon: 'business-outline', stages: ['رسوم الخرائط', 'رسوم البلدية', 'إشراف هندسي'] },
-    { id: 'cat_1', name: 'الهيكل الأسود', icon: 'hammer-outline', stages: ['القواعد والأساسات', 'الأعمدة', 'الأسقف', 'أعمال الطابوق', 'عزل الأسطح'] },
-    { id: 'cat_2', name: 'التشطيبات', icon: 'brush-outline', stages: ['المساح / البلاستر', 'الأرضيات', 'الأصباغ', 'الديكور والأسقف'] },
-    { id: 'cat_3', name: 'الكهرباء والخدمات', icon: 'flash-outline', stages: ['تأسيس الكهرباء', 'التكييف', 'التوريدات النهائية'] },
-    { id: 'cat_4', name: 'السباكة', icon: 'water-outline', stages: ['تأسيس الصحي', 'أطقم الحمامات', 'الفلتر المركزي'] },
+    { id: 'cat_office', name: 'المكاتب والرسوم', icon: 'business-outline', stages: ['رسوم الخرائط', 'رسوم البلدية', 'إشراف هندسي'] },
+    { id: 'cat_black', name: 'الهيكل الأسود', icon: 'hammer-outline', stages: ['الحفر والتدعيم', 'القواعد والأساسات', 'الأعمدة والرقاب', 'الأسقف والجسور', 'أعمال الطابوق', 'المساح', 'عزل الأسطح'] },
+    { id: 'cat_mep', name: 'الكهرباء والتكييف', icon: 'flash-outline', stages: ['تأسيس الكهرباء', 'الأسلاك', 'التشطيبات الكهربائية النهائية', 'التكييف المركزي', 'المصاعد', 'نظام السيكورتي والجرس'] },
+    { id: 'cat_plumbing', name: 'السباكة والصحي', icon: 'water-outline', stages: ['تأسيس الصحي', 'أنابيب التغذية', 'جهاز تحلية المياه', 'خزان الماء', 'السخان', 'أطقم الحمامات'] },
+    { id: 'cat_interior', name: 'التشطيبات الداخلية', icon: 'brush-outline', stages: ['الأرضيات والبورسلان', 'الأصباغ والديكور', 'النجارة والأبواب', 'الألمنيوم والزجاج'] },
+    { id: 'cat_external', name: 'خدمات خارجية', icon: 'home-outline', stages: ['المظلات', 'بركة السباحة'] },
+    { id: 'cat_labor', name: 'رسوم الأيدي العاملة', icon: 'people-outline', stages: ['البناء الأسود', 'الكهرباء', 'السباكة', 'الصباغة', 'الديكور'] },
     { id: 'cat_other', name: 'أخرى', icon: 'ellipsis-horizontal-outline', stages: ['عام'] }
 ];
 
 let globalData = {
-    projects: [],
-    currentProjectId: null
+    currentProjectId: null,
+    backups: [],
+    actionCounter: 0,
+    preRestoreState: null,
+    trash: {
+        projects: [],
+        categories: [],
+        stages: [],
+        expenses: []
+    }
 };
 
 let appData = null;
@@ -48,41 +57,79 @@ function ensureOtherCategory(cats) {
 }
 
 // Persistence
-function saveData() {
+function saveData(isAction = false) {
+    if (isAction) {
+        globalData.actionCounter++;
+        if (globalData.actionCounter >= 5) {
+            createAutoBackup();
+            globalData.actionCounter = 0;
+        }
+    }
     localStorage.setItem('bunyan_data', JSON.stringify(globalData));
 }
 
+function createAutoBackup() {
+    const backup = {
+        id: Date.now(),
+        date: new Date().toLocaleString('ar-EG'),
+        data: JSON.parse(JSON.stringify(globalData.projects)),
+        currentId: globalData.currentProjectId
+    };
+    
+    // Keep last 10 backups to save space
+    globalData.backups.unshift(backup);
+    if (globalData.backups.length > 10) {
+        globalData.backups.pop();
+    }
+}
+
 function loadData() {
-    const saved = localStorage.getItem('bunyan_data');
+    let saved = localStorage.getItem('bunyan_data');
+    
+    // Recovery check
+    if (!saved) {
+        // Check for ANY key that might contain data
+        const keys = ['bonyan_data', 'house_data', 'expenses', 'expenses_data'];
+        for (const k of keys) {
+            const d = localStorage.getItem(k);
+            if (d) { saved = d; break; }
+        }
+    }
+
     if (saved) {
-        let parsed = JSON.parse(saved);
-        if (!parsed.projects) {
-            // Migrate
-            globalData.currentProjectId = 'proj_1';
-            globalData.projects = [
-                {
-                    id: 'proj_1',
-                    projectName: parsed.projectName || 'قسيمة 402',
-                    currency: parsed.currency || 'د.ك',
+        try {
+            let parsed = JSON.parse(saved);
+            if (!parsed.projects) {
+                // Legacy Migration
+                const id = 'proj_1';
+                globalData.projects = [{
+                    id: id,
+                    projectName: parsed.projectName || 'مشروع منتقل',
+                    currency: parsed.currency || 'د.ب',
                     categories: ensureOtherCategory(parsed.categories || JSON.parse(JSON.stringify(defaultCategories))),
                     expenses: parsed.expenses || []
-                }
-            ];
-        } else {
-            globalData = parsed;
+                }];
+                globalData.currentProjectId = id;
+            } else {
+                globalData = parsed;
+            }
+
+            // Initialization of new fields
+            if (!globalData.backups) globalData.backups = [];
+            if (!globalData.actionCounter) globalData.actionCounter = 0;
+            if (!globalData.trash) {
+                globalData.trash = { projects: [], categories: [], stages: [], expenses: [] };
+            }
+        } catch (e) {
+            console.error("Data load error", e);
         }
     } else {
         const id = 'proj_' + Date.now();
+        globalData.projects = [{
+            id: id, projectName: 'قسيمة 402', currency: 'د.ب',
+            categories: JSON.parse(JSON.stringify(defaultCategories)), expenses: []
+        }];
         globalData.currentProjectId = id;
-        globalData.projects = [
-            {
-                id: id,
-                projectName: 'قسيمة 402',
-                currency: 'د.ك',
-                categories: JSON.parse(JSON.stringify(defaultCategories)),
-                expenses: []
-            }
-        ];
     }
 }
 
@@ -94,6 +141,7 @@ function updateProjectContext() {
     }
     document.getElementById('project-name-input').value = appData.projectName;
     document.getElementById('currency-input').value = appData.currency;
+    document.getElementById('budget-input').value = appData.budget || '';
     document.getElementById('project-title-display').textContent = appData.projectName;
     
     populateProjectSelector();
@@ -142,13 +190,30 @@ function switchView(viewId) {
     if (viewId === 'reports') renderReports();
     if (viewId === 'dashboard') renderDashboard();
     if (viewId === 'categories') renderCategories();
+    if (viewId === 'settings') {
+        renderBackups();
+        renderTrash();
+    }
 }
 
 // Rendering
 function renderDashboard() {
     const total = appData.expenses.reduce((sum, exp) => sum + parseFloat(exp.amount), 0);
+    const budget = parseFloat(appData.budget) || 0;
+    const remaining = budget - total;
+
     totalExpenseVal.textContent = total.toLocaleString(undefined, { minimumFractionDigits: 2 });
     document.getElementById('currency-display').textContent = appData.currency;
+    
+    document.getElementById('total-budget-val').textContent = budget.toLocaleString(undefined, { minimumFractionDigits: 2 });
+    
+    const remainingEl = document.getElementById('remaining-budget-val');
+    remainingEl.textContent = remaining.toLocaleString(undefined, { minimumFractionDigits: 2 });
+    if (remaining < 0) {
+        remainingEl.style.color = 'var(--danger-color)';
+    } else {
+        remainingEl.style.color = 'var(--text-primary)';
+    }
 
     recentList.innerHTML = '';
     if (appData.expenses.length === 0) {
@@ -158,19 +223,45 @@ function renderDashboard() {
 
     const recent = [...appData.expenses].reverse();
     recent.forEach(exp => {
-        const item = document.createElement('div');
-        item.className = 'transaction-item';
-        item.style.cursor = 'pointer';
-        item.innerHTML = `
-            <div class="t-info">
-                <span class="t-name">${exp.item}</span>
-                <span class="t-meta">${exp.category} • ${exp.stage}</span>
+        const container = document.createElement('div');
+        container.className = 'swipe-container';
+        container.innerHTML = `
+            <div class="swipe-action delete"><ion-icon name="trash-outline"></ion-icon> <span>حذف</span></div>
+            <div class="swipe-action edit"><span>تعديل</span> <ion-icon name="create-outline"></ion-icon></div>
+            <div class="swipe-item transaction-item" style="cursor: pointer; margin-bottom: 0;" onclick="const noteEl = this.querySelector('.exp-note-display'); if(noteEl) noteEl.style.display = noteEl.style.display === 'none' ? 'block' : 'none';">
+                <div class="t-info">
+                    <span class="t-name">${exp.item}</span>
+                    <span class="t-meta">${exp.category} • ${exp.stage}</span>
+                    <div class="exp-note-display" style="display: none; color: var(--accent-color); font-style: italic; font-size: 0.75rem; margin-top: 4px; padding-right: 8px; border-right: 2px solid var(--accent-color);">
+                        <span style="display:block; color: var(--text-secondary); font-size: 0.7rem; font-style: normal; margin-bottom: 2px;">أضيف في: ${new Date(exp.date).toLocaleString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                        ${exp.notes ? `ملاحظة: ${exp.notes}` : ''}
+                    </div>
+                </div>
+                <span class="t-amount">${parseFloat(exp.amount).toFixed(2)}</span>
             </div>
-            <span class="t-amount">${parseFloat(exp.amount).toFixed(2)}</span>
         `;
-        item.onclick = () => openEditExpense(exp.id);
-        recentList.appendChild(item);
+        
+        setupSwipe(container, {
+            onSwipeRight: () => deleteExpense(exp.id),
+            onSwipeLeft: () => openEditExpense(exp.id)
+        });
+        
+        recentList.appendChild(container);
     });
+}
+
+function deleteExpense(id) {
+    if(confirm('هل تريد فعلاً حذف هذا المصروف؟')) {
+        const expense = appData.expenses.find(e => e.id === id);
+        if (expense) {
+            globalData.trash.expenses.push(expense);
+        }
+        appData.expenses = appData.expenses.filter(e => e.id !== id);
+        saveData();
+        updateProjectContext();
+    } else {
+        renderDashboard(); // Snap back
+    }
 }
 
 function renderCategories() {
@@ -181,60 +272,62 @@ function renderCategories() {
         const total = catExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0);
         
         const card = document.createElement('div');
-        card.className = `category-card ${isExpanded ? 'expanded' : ''}`;
+        card.className = 'swipe-container category-swipe-container';
         card.setAttribute('data-id', cat.id);
         card.innerHTML = `
-            <div class="category-header">
-                <div class="drag-handle"><ion-icon name="reorder-two-outline"></ion-icon></div>
-                <div class="cat-icon"><ion-icon name="${cat.icon}"></ion-icon></div>
-                <div class="cat-details">
-                    <h4>${cat.name}</h4>
-                    <div class="cat-stats">${cat.stages.length} مراحل • ${total.toFixed(2)} ${appData.currency}</div>
+            <div class="swipe-action delete" style="border-radius: 20px;"><ion-icon name="trash-outline"></ion-icon><span>حذف</span></div>
+            <div class="swipe-action edit" style="border-radius: 20px;"><ion-icon name="create-outline"></ion-icon><span>تعديل</span></div>
+            <div class="swipe-item category-card ${isExpanded ? 'expanded' : ''}" style="border-radius: 20px;">
+                <div class="category-header">
+                    <div class="drag-handle"><ion-icon name="reorder-two-outline"></ion-icon></div>
+                    <div class="cat-icon"><ion-icon name="${cat.icon}"></ion-icon></div>
+                    <div class="cat-details">
+                        <h4>${cat.name}</h4>
+                        <div class="cat-stats">${cat.stages.length} مراحل • ${total.toFixed(2)} ${appData.currency}</div>
+                    </div>
+                    <ion-icon name="chevron-down-outline" style="margin-right: 10px;"></ion-icon>
                 </div>
-                ${cat.id !== 'cat_other' ? `
-                <div class="cat-actions">
-                    <button onclick="event.stopPropagation(); editCategory('${cat.id}')"><ion-icon name="create-outline"></ion-icon></button>
-                    <button onclick="event.stopPropagation(); deleteCategory('${cat.id}')"><ion-icon name="trash-outline"></ion-icon></button>
-                </div>
-                ` : ''}
-                <ion-icon name="chevron-down-outline" style="margin-right: 10px;"></ion-icon>
-            </div>
-            <div class="category-body">
-                <div class="stage-list" data-cat-id="${cat.id}">
-                    ${cat.stages.map((stage, idx) => {
-                        const stageExpenses = catExpenses.filter(e => e.stage === stage);
-                        const stageTotal = stageExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0);
-                        return `
-                        <div class="stage-item" data-name="${stage}">
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <div class="drag-handle" style="font-size: 1rem;"><ion-icon name="reorder-two-outline"></ion-icon></div>
-                                <div style="display: flex; flex-direction: column;">
-                                    <span style="font-weight: 500;">${stage}</span>
-                                    <span class="stage-total">${stageTotal.toFixed(2)} ${appData.currency}</span>
+                <div class="category-body">
+                    <div class="stage-list" data-cat-id="${cat.id}">
+                        ${cat.stages.map((stage, idx) => {
+                            const stageExpenses = catExpenses.filter(e => e.stage === stage);
+                            const stageTotal = stageExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0);
+                            return `
+                                <div class="swipe-container stage-swipe-container" data-cat-id="${cat.id}" data-idx="${idx}" style="margin-bottom: 5px;">
+                                    <div class="swipe-action delete" style="border-radius: 12px;"><ion-icon name="trash-outline"></ion-icon></div>
+                                    <div class="swipe-action edit" style="border-radius: 12px;"><ion-icon name="create-outline"></ion-icon></div>
+                                    <div class="swipe-item stage-item" data-name="${stage}" style="border-radius: 12px; padding: 10px; border: 1px solid var(--border-color);">
+                                        <div style="display: flex; align-items: center; gap: 8px;">
+                                            <div class="drag-handle" style="font-size: 1rem;"><ion-icon name="reorder-two-outline"></ion-icon></div>
+                                            <div style="display: flex; flex-direction: column;">
+                                                <span style="font-weight: 500;">${stage}</span>
+                                                <span class="stage-total">${stageTotal.toFixed(2)} ${appData.currency}</span>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                            ${(cat.id !== 'cat_other' || stage !== 'عام') ? `
-                            <div class="stage-actions">
-                                <button onclick="editStage('${cat.id}', ${idx})"><ion-icon name="create-outline"></ion-icon></button>
-                                <button onclick="deleteStage('${cat.id}', ${idx})"><ion-icon name="trash-outline"></ion-icon></button>
-                            </div>
-                            ` : ''}
-                        </div>
-                        `;
-                    }).join('')}
+                            `;
+                        }).join('')}
+                    </div>
+                    ${cat.id !== 'cat_other' ? `
+                    <button class="inline-add" style="width: 100%; text-align: right; padding: 10px 0;" onclick="addStagePrompt('${cat.id}')">+ إضافة مرحلة جديدة</button>
+                    ` : ''}
                 </div>
-                ${cat.id !== 'cat_other' ? `
-                <button class="inline-add" style="width: 100%; text-align: right; padding: 10px 0;" onclick="addStagePrompt('${cat.id}')">+ إضافة مرحلة جديدة</button>
-                ` : ''}
             </div>
         `;
 
+        setupSwipe(card, {
+            onSwipeRight: () => deleteCategory(cat.id),
+            onSwipeLeft: () => editCategory(cat.id)
+        });
+
         const header = card.querySelector('.category-header');
         header.onclick = () => {
-            const wasExpanded = card.classList.contains('expanded');
+            const innerCard = card.querySelector('.category-card');
+            const wasExpanded = innerCard.classList.contains('expanded');
             document.querySelectorAll('.category-card').forEach(c => c.classList.remove('expanded'));
             if (!wasExpanded) {
-                card.classList.add('expanded');
+                innerCard.classList.add('expanded');
                 expandedCategoryId = cat.id;
             } else {
                 expandedCategoryId = null;
@@ -259,6 +352,20 @@ function renderCategories() {
     // Initialize Sortable for stages
     document.querySelectorAll('.stage-list').forEach(list => {
         const catId = list.getAttribute('data-cat-id');
+        
+        // Initialize Swipe for each stage
+        list.querySelectorAll('.stage-swipe-container').forEach(sContainer => {
+            const idx = parseInt(sContainer.getAttribute('data-idx'));
+            const stageName = appData.categories.find(c => c.id === catId).stages[idx];
+            
+            if (catId !== 'cat_other' || stageName !== 'عام') {
+                setupSwipe(sContainer, {
+                    onSwipeRight: () => deleteStage(catId, idx),
+                    onSwipeLeft: () => editStage(catId, idx)
+                });
+            }
+        });
+
         new Sortable(list, {
             animation: 150,
             handle: '.drag-handle',
@@ -267,12 +374,141 @@ function renderCategories() {
                 const newOrder = Array.from(list.querySelectorAll('.stage-item')).map(el => el.getAttribute('data-name'));
                 cat.stages.sort((a, b) => newOrder.indexOf(a) - newOrder.indexOf(b));
                 saveData();
+                renderCategories(); // Re-render to update idx attributes
             }
         });
     });
 }
 
-// Remove old moveCategory and moveStage
+// Swipe Implementation
+function setupSwipe(container, actions) {
+    const children = Array.from(container.children);
+    const item = children.find(c => c.classList.contains('swipe-item'));
+    const delBtn = children.find(c => c.classList.contains('swipe-action') && c.classList.contains('delete'));
+    const editBtn = children.find(c => c.classList.contains('swipe-action') && c.classList.contains('edit'));
+    
+    if (!item) return;
+
+    let startX = 0;
+    let currentX = 0;
+    let isDragging = false;
+    let hasMoved = false;
+    let revealed = 0;
+    let holdTimer = null;
+    let canSwipe = false;
+    
+    const threshold = 35;
+    const buttonWidth = 80;
+
+    const onStart = (e) => {
+        e.stopPropagation();
+        startX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+        canSwipe = false;
+        isDragging = false;
+        hasMoved = false;
+        
+        if (holdTimer) clearTimeout(holdTimer);
+        holdTimer = setTimeout(() => {
+            canSwipe = true;
+            item.style.transition = 'transform 0.2s ease, box-shadow 0.2s ease';
+            item.style.transform = 'scale(0.97)';
+            item.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
+            if(window.navigator.vibrate) window.navigator.vibrate(30);
+        }, 300);
+
+        item.style.transition = 'none';
+    };
+
+    const onMove = (e) => {
+        const x = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+        const delta = (x - startX);
+
+        if (!canSwipe) {
+            if (Math.abs(delta) > 10) {
+                clearTimeout(holdTimer); 
+            }
+            return;
+        }
+
+        e.stopPropagation();
+        isDragging = true;
+        if (Math.abs(delta) > 5) {
+            hasMoved = true;
+        }
+        
+        if (!hasMoved) return;
+
+        currentX = delta + (revealed * buttonWidth);
+        let displayX = currentX;
+        if (Math.abs(currentX) > buttonWidth) {
+            displayX = (currentX > 0 ? buttonWidth : -buttonWidth) + (currentX - (currentX > 0 ? buttonWidth : -buttonWidth)) * 0.3;
+        }
+        // Keep scale while swiping
+        item.style.transform = `translateX(${displayX}px) scale(0.97)`;
+    };
+
+    const onEnd = (e) => {
+        e.stopPropagation();
+        clearTimeout(holdTimer);
+        item.style.boxShadow = 'none';
+        // Reset scale but keep translation
+        item.style.transform = item.style.transform.replace(/scale\(.*?\)/, 'scale(1)');
+
+        if (!isDragging) {
+            item.style.transform = `translateX(${revealed * buttonWidth}px)`;
+            return;
+        }
+        isDragging = false;
+        if (!hasMoved) {
+            item.style.transform = `translateX(${revealed * buttonWidth}px)`;
+            return;
+        }
+
+        item.style.transition = 'transform 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28)';
+        const snapThreshold = buttonWidth * 0.5;
+        if (currentX > snapThreshold) {
+            item.style.transform = `translateX(${buttonWidth}px)`;
+            revealed = 1;
+        } else if (currentX < -snapThreshold) {
+            item.style.transform = `translateX(-${buttonWidth}px)`;
+            revealed = -1;
+        } else {
+            item.style.transform = `translateX(0)`;
+            revealed = 0;
+        }
+    };
+
+    item.addEventListener('touchstart', onStart, {passive: false});
+    item.addEventListener('touchmove', onMove, {passive: false});
+    item.addEventListener('touchend', onEnd);
+    item.addEventListener('mousedown', onStart);
+    item.addEventListener('mousemove', onMove);
+    item.addEventListener('mouseup', onEnd);
+    item.addEventListener('mouseleave', onEnd);
+
+    item.addEventListener('click', (e) => {
+        if (revealed !== 0) {
+            e.preventDefault();
+            e.stopPropagation();
+            item.style.transition = 'transform 0.3s ease';
+            item.style.transform = 'translateX(0)';
+            revealed = 0;
+        }
+    }, true);
+
+    if(delBtn) delBtn.onclick = (e) => {
+        e.stopPropagation();
+        actions.onSwipeRight();
+        item.style.transform = 'translateX(0)';
+        revealed = 0;
+    };
+    if(editBtn) editBtn.onclick = (e) => {
+        e.stopPropagation();
+        actions.onSwipeLeft();
+        item.style.transform = 'translateX(0)';
+        revealed = 0;
+    };
+}
 
 function renderReports() {
     if (categoryChart) categoryChart.destroy();
@@ -336,8 +572,14 @@ function renderReports() {
                         <span>${stage.total.toFixed(2)}</span>
                     </div>
                     ${stage.expenses.map(e => `
-                        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; padding: 5px 0;">
-                            <span>- ${e.item}</span>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer;" onclick="const noteEl = this.querySelector('.report-note-display'); if(noteEl) noteEl.style.display = noteEl.style.display === 'none' ? 'block' : 'none';">
+                            <div style="display: flex; flex-direction: column;">
+                                <span>- ${e.item}</span>
+                                <div class="report-note-display" style="display: none; margin-right: 12px; padding-top: 4px;">
+                                    <span style="display:block; color: var(--text-secondary); font-size: 0.7rem;">أضيف في: ${new Date(e.date).toLocaleString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                                    ${e.notes ? `<span style="color: var(--text-secondary); font-size: 0.75rem;">(${e.notes})</span>` : ''}
+                                </div>
+                            </div>
                             <span style="color: var(--text-secondary);">${parseFloat(e.amount).toFixed(2)}</span>
                         </div>
                     `).join('')}
@@ -347,6 +589,140 @@ function renderReports() {
         reportList.appendChild(catEl);
     });
 }
+
+function renderBackups() {
+    const list = document.getElementById('auto-backups-list');
+    if (!list) return;
+    list.innerHTML = '';
+    
+    // Show Undo Restore button if available
+    if (globalData.preRestoreState) {
+        const undoEl = document.createElement('div');
+        undoEl.style.marginBottom = '15px';
+        undoEl.innerHTML = `
+            <div style="background: rgba(59, 130, 246, 0.1); border: 1px dashed var(--accent-color); padding: 12px; border-radius: 12px; display: flex; flex-direction: column; gap: 8px;">
+                <span style="font-size: 0.85rem; color: var(--accent-color); font-weight: 600;">تمت الاستعادة بنجاح. هل تريد التراجع؟</span>
+                <button class="action-btn" onclick="undoRestore()" style="width: 100%; padding: 8px;">إلغاء الاستعادة والرجوع للحالة السابقة</button>
+            </div>
+        `;
+        list.appendChild(undoEl);
+    }
+
+    if (globalData.backups.length === 0) {
+        const empty = document.createElement('div');
+        empty.innerHTML = '<div style="font-size: 0.8rem; color: var(--text-secondary); text-align: center; padding: 10px;">لا توجد نسخ تلقائية بعد. ستظهر هنا بعد إضافة 5 مصروفات.</div>';
+        list.appendChild(empty);
+        return;
+    }
+
+    const backupsGrid = document.createElement('div');
+    backupsGrid.style.display = 'flex';
+    backupsGrid.style.flexDirection = 'column';
+    backupsGrid.style.gap = '8px';
+    backupsGrid.innerHTML = globalData.backups.map(b => `
+        <div style="background: var(--card-bg); padding: 12px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-color);">
+            <div style="display: flex; flex-direction: column;">
+                <span style="font-size: 0.9rem; font-weight: 600;">${b.date}</span>
+                <span style="font-size: 0.75rem; color: var(--text-secondary);">نسخة تلقائية</span>
+            </div>
+            <button class="text-btn" onclick="restoreBackup(${b.id})" style="color: var(--accent-color); font-size: 0.85rem;">استعادة</button>
+        </div>
+    `).join('');
+    list.appendChild(backupsGrid);
+}
+
+window.restoreBackup = (id) => {
+    if (confirm('هل أنت متأكد من استعادة هذه النسخة؟ سيتم استبدال البيانات الحالية ببيانات النسخة المختارة.')) {
+        const backup = globalData.backups.find(b => b.id === id);
+        if (backup) {
+            // Save current state as pre-restore before overwriting
+            const currentState = {
+                projects: JSON.parse(JSON.stringify(globalData.projects)),
+                currentId: globalData.currentProjectId
+            };
+            
+            globalData.projects = JSON.parse(JSON.stringify(backup.data));
+            globalData.currentProjectId = backup.currentId;
+            globalData.preRestoreState = currentState;
+            
+            saveData();
+            location.reload();
+        }
+    }
+};
+
+window.undoRestore = () => {
+    if (globalData.preRestoreState) {
+        globalData.projects = JSON.parse(JSON.stringify(globalData.preRestoreState.projects));
+        globalData.currentProjectId = globalData.preRestoreState.currentId;
+        globalData.preRestoreState = null; // Clear it after undo
+        saveData();
+        location.reload();
+    }
+};
+
+function renderTrash() {
+    const list = document.getElementById('trash-list');
+    if (!list) return;
+    
+    const allTrash = [
+        ...globalData.trash.projects.map(p => ({ type: 'project', name: p.projectName, id: p.id, info: 'مشروع (فيلا)' })),
+        ...globalData.trash.categories.map(c => ({ type: 'category', name: c.name, id: c.id, info: 'بند أساسي' })),
+        ...globalData.trash.expenses.map(e => ({ type: 'expense', name: e.item, id: e.id, info: `${e.amount} ${appData.currency}` })),
+        ...globalData.trash.stages.map(s => ({ type: 'stage', name: s.stageName, id: s.catId + s.stageName, info: 'مرحلة' }))
+    ];
+
+    if (allTrash.length === 0) {
+        list.innerHTML = '<div style="font-size: 0.8rem; color: var(--text-secondary); text-align: center; padding: 10px;">سلة المحذوفات فارغة.</div>';
+        return;
+    }
+
+    list.innerHTML = allTrash.map(item => `
+        <div style="background: var(--card-bg); padding: 10px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-color); margin-bottom: 5px;">
+            <div style="display: flex; flex-direction: column;">
+                <span style="font-size: 0.85rem; font-weight: 600;">${item.name}</span>
+                <span style="font-size: 0.7rem; color: var(--text-secondary);">${item.info}</span>
+            </div>
+            <button class="text-btn" onclick="restoreFromTrash('${item.type}', '${item.id}')" style="color: var(--accent-color); font-size: 0.8rem;">استعادة</button>
+        </div>
+    `).join('');
+}
+
+window.restoreFromTrash = (type, id) => {
+    let item;
+    if (type === 'project') {
+        item = globalData.trash.projects.find(p => p.id === id);
+        if (item) {
+            globalData.projects.push(item);
+            globalData.trash.projects = globalData.trash.projects.filter(p => p.id !== id);
+        }
+    } else if (type === 'category') {
+        item = globalData.trash.categories.find(c => c.id === id);
+        if (item) {
+            const targetProj = globalData.projects.find(p => p.id === item.projectId) || appData;
+            targetProj.categories.push(item);
+            globalData.trash.categories = globalData.trash.categories.filter(c => c.id !== id);
+        }
+    } else if (type === 'expense') {
+        item = globalData.trash.expenses.find(e => e.id == id);
+        if (item) {
+            appData.expenses.push(item);
+            globalData.trash.expenses = globalData.trash.expenses.filter(e => e.id != id);
+        }
+    } else if (type === 'stage') {
+        item = globalData.trash.stages.find(s => (s.catId + s.stageName) === id);
+        if (item) {
+            const cat = appData.categories.find(c => c.id === item.catId);
+            if (cat) cat.stages.push(item.stageName);
+            globalData.trash.stages = globalData.trash.stages.filter(s => (s.catId + s.stageName) !== id);
+        }
+    }
+    
+    saveData();
+    updateProjectContext();
+    renderTrash();
+    alert('تمت استعادة العنصر بنجاح!');
+};
 
 function populateSelects() {
     catSelect.innerHTML = appData.categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
@@ -423,7 +799,7 @@ function setupEventListeners() {
             };
             appData.expenses.push(newExpense);
         }
-        saveData();
+        saveData(true);
         updateProjectContext();
         addExpenseModal.classList.remove('active');
     };
@@ -452,8 +828,23 @@ function setupEventListeners() {
     };
 
     document.getElementById('reset-data').onclick = () => {
-        if (confirm('تنبيه هام! هل أنت متأكد من مسح جميع المشاريع والبيانات بالكامل؟ لا يمكن التراجع عن هذا الإجراء.')) {
-            localStorage.removeItem('bunyan_data');
+        if (confirm('تنبيه هام! هل أنت متأكد من مسح جميع المشاريع والبيانات الحالية؟ سيتم نقلها إلى سلة المحذوفات لتتمكن من استعادتها لاحقاً إذا أردت.')) {
+            // Move all current projects to trash for safety
+            globalData.projects.forEach(p => {
+                globalData.trash.projects.push(JSON.parse(JSON.stringify(p)));
+            });
+            
+            // Reset to default state but KEEP backups and trash
+            const id = 'proj_' + Date.now();
+            globalData.projects = [{
+                id: id, projectName: 'مشروع جديد', currency: 'د.ب',
+                categories: JSON.parse(JSON.stringify(defaultCategories)), expenses: []
+            }];
+            globalData.currentProjectId = id;
+            globalData.actionCounter = 0;
+            
+            saveData();
+            alert('تم مسح البيانات بنجاح ونقل النسخة القديمة إلى سلة المحذوفات.');
             location.reload();
         }
     };
@@ -472,7 +863,7 @@ function setupEventListeners() {
             globalData.projects.push({
                 id: id,
                 projectName: name,
-                currency: 'د.ك',
+                currency: 'د.ب',
                 categories: JSON.parse(JSON.stringify(defaultCategories)),
                 expenses: []
             });
@@ -495,6 +886,61 @@ function setupEventListeners() {
         renderDashboard();
         renderCategories();
         renderReports();
+    };
+
+    document.getElementById('budget-input').onchange = (e) => {
+        appData.budget = parseFloat(e.target.value) || 0;
+        saveData();
+        renderDashboard();
+    };
+
+    document.getElementById('reset-to-standard-cats-btn').onclick = () => {
+        if (confirm('هل تريد استيراد جميع البنود والمراحل القياسية (الستاندرد)؟ سيتم إضافة المراحل الناقصة لبنودك الحالية دون حذف أي بيانات.')) {
+            defaultCategories.forEach(defCat => {
+                const existingCat = appData.categories.find(c => c.name === defCat.name);
+                if (existingCat) {
+                    // Merge missing stages
+                    defCat.stages.forEach(s => {
+                        if (!existingCat.stages.includes(s)) {
+                            existingCat.stages.push(s);
+                        }
+                    });
+                } else {
+                    // Add new category
+                    appData.categories.push(JSON.parse(JSON.stringify(defCat)));
+                }
+            });
+            saveData();
+            renderCategories();
+            populateSelects();
+            alert('تم تحديث واستيراد البنود القياسية بنجاح!');
+        }
+    };
+
+    document.getElementById('delete-current-project-btn').onclick = () => {
+        if (!globalData.trash) globalData.trash = { projects: [], categories: [], stages: [], expenses: [] };
+        
+        if (globalData.projects.length <= 1) {
+            alert("لا يمكن حذف المشروع الوحيد. قم بإضافة مشروع جديد أولاً.");
+            return;
+        }
+        
+        const projName = appData.projectName;
+        if (confirm(`هل أنت متأكد من حذف مشروع "${projName}"؟ سيتم نقله إلى سلة المحذوفات.`)) {
+            // Move to trash
+            globalData.trash.projects.push(JSON.parse(JSON.stringify(appData)));
+            
+            // Remove from projects
+            const deletedId = appData.id;
+            globalData.projects = globalData.projects.filter(p => p.id !== deletedId);
+            
+            // Switch to another project
+            globalData.currentProjectId = globalData.projects[0].id;
+            
+            saveData();
+            alert(`تم نقل مشروع "${projName}" إلى سلة المحذوفات.`);
+            location.reload();
+        }
     };
 
     // Category Management
@@ -535,7 +981,10 @@ function setupEventListeners() {
         }
         
         if(confirm(confirmMsg)) {
-            if(expensesCount > 0) {
+        const cat = appData.categories.find(c => c.id === catId);
+        globalData.trash.categories.push({ ...cat, projectId: appData.id });
+        
+        if(expensesCount > 0) {
                 const otherCat = appData.categories.find(c => c.id === 'cat_other');
                 appData.expenses.forEach(e => {
                     if(e.categoryId === catId) {
@@ -591,6 +1040,7 @@ function setupEventListeners() {
             }
             
             if(confirm(confirmMsg)) {
+                globalData.trash.stages.push({ catId, stageName, projectId: appData.id });
                 if(expensesCount > 0) {
                     const otherCat = appData.categories.find(c => c.id === 'cat_other');
                     appData.expenses.forEach(e => {
@@ -612,46 +1062,65 @@ function setupEventListeners() {
     document.getElementById('export-excel').onclick = () => {
         const rows = [];
         let grandTotal = 0;
+        let index = 1;
 
+        // Loop through Categories and Stages to maintain logical grouping/order
         appData.categories.forEach(cat => {
             const catExps = appData.expenses.filter(e => e.categoryId === cat.id);
             if (catExps.length === 0) return;
 
-            // Category Header
-            rows.push({ 'التاريخ': `*** ${cat.name} ***`, 'البند': '', 'المرحلة': '', 'نوع المصروف': '', 'المبلغ': '', 'ملاحظات': '' });
-            
-            let catTotal = 0;
             cat.stages.forEach(stage => {
                 const sExps = catExps.filter(e => e.stage === stage);
                 if (sExps.length === 0) return;
 
-                let stageTotal = 0;
                 sExps.forEach(e => {
                     rows.push({
-                        'التاريخ': new Date(e.date).toLocaleDateString('ar-EG'),
+                        'م': index++,
+                        'التاريخ': new Date(e.date).toLocaleString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
                         'البند': e.category,
                         'المرحلة': e.stage,
                         'نوع المصروف': e.item,
                         'المبلغ': parseFloat(e.amount),
+                        'العملة': appData.currency,
                         'ملاحظات': e.notes || ''
                     });
-                    stageTotal += parseFloat(e.amount);
+                    grandTotal += parseFloat(e.amount);
                 });
-
-                // Stage Subtotal
-                rows.push({ 'التاريخ': '', 'البند': '', 'المرحلة': `مجموع ${stage}`, 'نوع المصروف': '', 'المبلغ': stageTotal, 'ملاحظات': '' });
-                catTotal += stageTotal;
             });
-
-            // Category Total
-            rows.push({ 'التاريخ': '', 'البند': `إجمالي ${cat.name}`, 'المرحلة': '', 'نوع المصروف': '', 'المبلغ': catTotal, 'ملاحظات': '' });
-            rows.push({}); // Empty row for spacing
-            grandTotal += catTotal;
         });
 
-        rows.push({ 'التاريخ': 'الإجمالي الكلي', 'البند': '', 'المرحلة': '', 'نوع المصروف': '', 'المبلغ': grandTotal, 'ملاحظات': appData.currency });
+        if (rows.length === 0) {
+            alert('لا توجد مصروفات لتصديرها.');
+            return;
+        }
+
+        // Add a single Grand Total row at the very bottom
+        rows.push({}); // Empty row for separation
+        rows.push({
+            'م': '',
+            'التاريخ': '',
+            'البند': '',
+            'المرحلة': '',
+            'نوع المصروف': 'الإجمالي الكلي:',
+            'المبلغ': grandTotal,
+            'العملة': appData.currency,
+            'ملاحظات': ''
+        });
 
         const worksheet = XLSX.utils.json_to_sheet(rows);
+        
+        // Define wider Column Widths for better readability
+        worksheet['!cols'] = [
+            { wch: 5 },  // م
+            { wch: 15 }, // التاريخ
+            { wch: 25 }, // البند
+            { wch: 25 }, // المرحلة
+            { wch: 35 }, // نوع المصروف
+            { wch: 15 }, // المبلغ
+            { wch: 10 }, // العملة
+            { wch: 55 }  // ملاحظات
+        ];
+
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "تقرير البنيان");
         XLSX.writeFile(workbook, `${appData.projectName}_تقرير_مفصل.xlsx`);

@@ -116,6 +116,9 @@ body {
 /* Dashboard Cards */
 .stats-grid {
     margin-bottom: 2rem;
+    display: grid;
+    gap: 15px;
+    grid-template-columns: 1fr;
 }
 
 .stat-card {
@@ -221,6 +224,51 @@ body {
     padding: 3rem 1rem;
     color: var(--text-secondary);
     font-style: italic;
+}
+
+/* Swipe Actions */
+.swipe-container {
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 0.75rem;
+    border-radius: 16px;
+    touch-action: pan-y; /* Allow vertical scrolling, but intercept horizontal */
+}
+
+.swipe-action {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 80px; /* Fixed width for button reveal */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    font-size: 0.8rem;
+    z-index: 1;
+    gap: 4px;
+    flex-direction: column;
+    cursor: pointer;
+}
+
+.swipe-action.delete {
+    background: var(--danger);
+    left: 0; /* Revealed when swiping Right */
+}
+
+.swipe-action.edit {
+    background: var(--accent-color);
+    right: 0; /* Revealed when swiping Left */
+}
+
+.swipe-item {
+    position: relative;
+    z-index: 2;
+    transition: transform 0.2s ease-out;
+    background: var(--card-bg); /* Ensure it covers the background */
+    margin-bottom: 0 !important;
+    border: 1px solid var(--border-color);
 }
 
 /* Categories List & Accordion */
