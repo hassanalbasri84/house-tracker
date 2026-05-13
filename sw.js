@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bunyan-v2';
+const CACHE_NAME = 'bunyan-v3';
 const ASSETS = [
     './',
     './index.html',
