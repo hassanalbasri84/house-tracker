@@ -1,6 +1,7 @@
 // Data Model Initial Structure
 const defaultCategories = [
-    { id: 'cat_1', name: 'الهيكل الأسود', icon: 'hammer-outline', stages: ['القواعد والأساسات', 'الأعمدة', 'الأسقف', 'أعمال الطابوق'] },
+    { id: 'cat_5', name: 'المكاتب والرسوم', icon: 'business-outline', stages: ['رسوم الخرائط', 'رسوم البلدية', 'إشراف هندسي'] },
+    { id: 'cat_1', name: 'الهيكل الأسود', icon: 'hammer-outline', stages: ['القواعد والأساسات', 'الأعمدة', 'الأسقف', 'أعمال الطابوق', 'عزل الأسطح'] },
     { id: 'cat_2', name: 'التشطيبات', icon: 'brush-outline', stages: ['المساح / البلاستر', 'الأرضيات', 'الأصباغ', 'الديكور والأسقف'] },
     { id: 'cat_3', name: 'الكهرباء والخدمات', icon: 'flash-outline', stages: ['تأسيس الكهرباء', 'التكييف', 'التوريدات النهائية'] },
     { id: 'cat_4', name: 'السباكة', icon: 'water-outline', stages: ['تأسيس الصحي', 'أطقم الحمامات', 'الفلتر المركزي'] },
@@ -205,9 +206,15 @@ function renderCategories() {
                         const stageTotal = stageExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0);
                         return `
                         <div class="stage-item">
-                            <div style="display: flex; flex-direction: column;">
-                                <span style="font-weight: 500;">${stage}</span>
-                                <span class="stage-total">${stageTotal.toFixed(2)} ${appData.currency}</span>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <div class="cat-reorder" style="flex-direction: row; gap: 5px;">
+                                    <button onclick="event.stopPropagation(); moveStage('${cat.id}', ${idx}, 'up')"><ion-icon name="caret-up-outline"></ion-icon></button>
+                                    <button onclick="event.stopPropagation(); moveStage('${cat.id}', ${idx}, 'down')"><ion-icon name="caret-down-outline"></ion-icon></button>
+                                </div>
+                                <div style="display: flex; flex-direction: column;">
+                                    <span style="font-weight: 500;">${stage}</span>
+                                    <span class="stage-total">${stageTotal.toFixed(2)} ${appData.currency}</span>
+                                </div>
                             </div>
                             ${(cat.id !== 'cat_other' || stage !== 'عام') ? `
                             <div class="stage-actions">
@@ -234,6 +241,18 @@ window.moveCategory = (catId, direction) => {
         [appData.categories[idx], appData.categories[idx-1]] = [appData.categories[idx-1], appData.categories[idx]];
     } else if (direction === 'down' && idx < appData.categories.length - 1) {
         [appData.categories[idx], appData.categories[idx+1]] = [appData.categories[idx+1], appData.categories[idx]];
+    }
+    saveData();
+    renderCategories();
+};
+
+window.moveStage = (catId, stageIdx, direction) => {
+    const cat = appData.categories.find(c => c.id === catId);
+    if (!cat) return;
+    if (direction === 'up' && stageIdx > 0) {
+        [cat.stages[stageIdx], cat.stages[stageIdx-1]] = [cat.stages[stageIdx-1], cat.stages[stageIdx]];
+    } else if (direction === 'down' && stageIdx < cat.stages.length - 1) {
+        [cat.stages[stageIdx], cat.stages[stageIdx+1]] = [cat.stages[stageIdx+1], cat.stages[stageIdx]];
     }
     saveData();
     renderCategories();
