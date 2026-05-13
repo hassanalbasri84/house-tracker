@@ -221,23 +221,62 @@
                         <label>ملاحظات (اختياري)</label>
                         <textarea id="exp-notes"></textarea>
                     </div>
+                    <div class="form-group">
+                        <label>صورة الفاتورة/الرصيد (اختياري)</label>
+                        <input type="file" id="exp-image" accept="image/*" style="display: none;">
+                        <button type="button" class="action-btn" id="upload-image-trigger" style="width: 100%; border-style: dashed; background: rgba(var(--accent-color-rgb), 0.05);">
+                            <ion-icon name="camera-outline"></ion-icon>
+                            <span>اختيار صورة</span>
+                        </button>
+                        <div id="image-preview" style="margin-top: 10px; display: none; position: relative;">
+                            <img src="" style="width: 100%; border-radius: 10px; border: 1px solid var(--border-color);">
+                            <button type="button" id="remove-image" style="position: absolute; top: 5px; right: 5px; background: rgba(239, 68, 68, 0.8); color: white; border: none; border-radius: 50%; width: 25px; height: 25px; cursor: pointer;">×</button>
+                        </div>
+                    </div>
                     <div class="modal-footer-btns">
                         <button type="submit" class="submit-btn" style="margin-top: 0;">حفظ المصروف</button>
                         <button type="button" class="action-btn close-modal"
                             style="margin-top: 0; background: var(--bg-color); flex: 1;">إلغاء</button>
                     </div>
-                    <button type="button" class="danger-btn" id="delete-expense-btn"
-                        style="display: none; margin-top: 10px; padding: 0.8rem;">حذف هذا المصروف</button>
-                </form>
-            </div>
-        </div>
+    <button type="button" class="danger-btn" id="delete-expense-btn"
+        style="display: none; margin-top: 10px; padding: 0.8rem;">حذف هذا المصروف</button>
+</form>
+</div>
+</div>
+
+<div class="modal" id="stage-photos-modal">
+<div class="modal-content" style="max-width: 500px;">
+<div class="modal-header">
+    <h2 id="modal-stage-title">توثيق المرحلة</h2>
+    <button class="close-modal" type="button" onclick="document.getElementById('stage-photos-modal').classList.remove('active')"><ion-icon name="close-outline"></ion-icon></button>
+</div>
+<div id="stage-photos-list" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; max-height: 400px; overflow-y: auto;">
+    <!-- Photos here -->
+</div>
+<div class="modal-footer">
+    <input type="file" id="stage-photo-input" accept="image/*" style="display: none;" multiple>
+    <button class="action-btn" onclick="document.getElementById('stage-photo-input').click()" style="width: 100%;">
+        <ion-icon name="add-circle-outline"></ion-icon>
+        <span>إضافة صور للعمل</span>
+    </button>
+</div>
+</div>
+</div>
+</div>
+
+<div class="modal" id="image-viewer-modal" style="z-index: 2000; background: rgba(0,0,0,0.9);">
+    <button class="close-modal" type="button" style="position: absolute; top: 20px; right: 20px; background: none; border: none; color: white; font-size: 2.5rem; cursor: pointer; padding: 10px; z-index: 2001;">
+        <ion-icon name="close-outline"></ion-icon>
+    </button>
+    <img id="viewer-image" src="" style="width: 95%; max-height: 90vh; object-fit: contain; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); border-radius: 10px;">
+</div>
     </div>
     <script src="script.js"></script>
     <script>
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js');
         }
-    </script>
+    </script>طأ
 </body>
 
 </html>

@@ -189,7 +189,7 @@ body {
     margin-bottom: 0.75rem;
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
     border: 1px solid transparent;
     transition: all 0.2s ease;
 }
@@ -602,4 +602,20 @@ body {
 
 .action-btn:active {
     background: var(--border-color);
+}
+
+/* Sortable drag/drop visual feedback */
+.sortable-ghost {
+    opacity: 1 !important;
+}
+
+.sortable-ghost-stage {
+    opacity: 0.4 !important;
+}
+
+.sortable-drag {
+    opacity: 1 !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35) !important;
+    transform: scale(1.03) !important;
+    border-radius: 12px;
 }

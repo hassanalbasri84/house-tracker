@@ -40,6 +40,49 @@ const categoryChartCanvas = document.getElementById('categoryChart');
 let categoryChart = null;
 let editingExpenseId = null;
 let expandedCategoryId = null;
+let currentExpenseImage = null;
+let isSortableDragging = false;
+
+const expImageInput = document.getElementById('exp-image');
+const uploadTrigger = document.getElementById('upload-image-trigger');
+const imagePreview = document.getElementById('image-preview');
+const previewImg = imagePreview.querySelector('img');
+const removeImageBtn = document.getElementById('remove-image');
+
+// Image Handling
+function compressImage(file, callback) {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const MAX_WIDTH = 800;
+            const MAX_HEIGHT = 800;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+                if (width > MAX_WIDTH) {
+                    height *= MAX_WIDTH / width;
+                    width = MAX_WIDTH;
+                }
+            } else {
+                if (height > MAX_HEIGHT) {
+                    width *= MAX_HEIGHT / height;
+                    height = MAX_HEIGHT;
+                }
+            }
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            // Export as JPEG with 0.7 quality to save space
+            callback(canvas.toDataURL('image/jpeg', 0.7));
+        };
+    };
+}
 
 // Initialize App
 function init() {
@@ -139,6 +182,9 @@ function updateProjectContext() {
         appData = globalData.projects[0];
         globalData.currentProjectId = appData.id;
     }
+    
+    // Ensure data structures
+    if (!appData.stagePhotos) appData.stagePhotos = {};
     document.getElementById('project-name-input').value = appData.projectName;
     document.getElementById('currency-input').value = appData.currency;
     document.getElementById('budget-input').value = appData.budget || '';
@@ -235,9 +281,13 @@ function renderDashboard() {
                     <div class="exp-note-display" style="display: none; color: var(--accent-color); font-style: italic; font-size: 0.75rem; margin-top: 4px; padding-right: 8px; border-right: 2px solid var(--accent-color);">
                         <span style="display:block; color: var(--text-secondary); font-size: 0.7rem; font-style: normal; margin-bottom: 2px;">أضيف في: ${new Date(exp.date).toLocaleString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                         ${exp.notes ? `ملاحظة: ${exp.notes}` : ''}
+                        ${exp.image ? `<div style="margin-top: 10px;"><img src="${exp.image}" style="width: 100%; border-radius: 8px; cursor: zoom-in;" onclick="event.stopPropagation(); document.getElementById('viewer-image').src=this.src; document.getElementById('image-viewer-modal').classList.add('active');"></div>` : ''}
                     </div>
                 </div>
-                <span class="t-amount">${parseFloat(exp.amount).toFixed(2)}</span>
+                <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+                    <span class="t-amount">${parseFloat(exp.amount).toFixed(2)}</span>
+                    ${exp.image ? `<span style="display: flex; align-items: center; gap: 3px; background: rgba(245, 158, 11, 0.15); color: var(--accent-color); border-radius: 20px; padding: 2px 7px; font-size: 0.65rem;"><ion-icon name="receipt-outline" style="font-size: 0.75rem;"></ion-icon>فاتورة</span>` : ''}
+                </div>
             </div>
         `;
         
@@ -277,7 +327,7 @@ function renderCategories() {
         card.innerHTML = `
             <div class="swipe-action delete" style="border-radius: 20px;"><ion-icon name="trash-outline"></ion-icon><span>حذف</span></div>
             <div class="swipe-action edit" style="border-radius: 20px;"><ion-icon name="create-outline"></ion-icon><span>تعديل</span></div>
-            <div class="swipe-item category-card ${isExpanded ? 'expanded' : ''}" style="border-radius: 20px;">
+            <div class="swipe-item category-card ${isExpanded ? 'expanded' : ''}" data-id="${cat.id}" style="border-radius: 20px;">
                 <div class="category-header">
                     <div class="drag-handle"><ion-icon name="reorder-two-outline"></ion-icon></div>
                     <div class="cat-icon"><ion-icon name="${cat.icon}"></ion-icon></div>
@@ -292,16 +342,24 @@ function renderCategories() {
                         ${cat.stages.map((stage, idx) => {
                             const stageExpenses = catExpenses.filter(e => e.stage === stage);
                             const stageTotal = stageExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0);
+                            const photosCount = (appData.stagePhotos && appData.stagePhotos[`${cat.id}_${stage}`]) ? appData.stagePhotos[`${cat.id}_${stage}`].length : 0;
+                            const hasPhotos = photosCount > 0;
                             return `
                                 <div class="swipe-container stage-swipe-container" data-cat-id="${cat.id}" data-idx="${idx}" style="margin-bottom: 5px;">
                                     <div class="swipe-action delete" style="border-radius: 12px;"><ion-icon name="trash-outline"></ion-icon></div>
                                     <div class="swipe-action edit" style="border-radius: 12px;"><ion-icon name="create-outline"></ion-icon></div>
-                                    <div class="swipe-item stage-item" data-name="${stage}" style="border-radius: 12px; padding: 10px; border: 1px solid var(--border-color);">
-                                        <div style="display: flex; align-items: center; gap: 8px;">
-                                            <div class="drag-handle" style="font-size: 1rem;"><ion-icon name="reorder-two-outline"></ion-icon></div>
-                                            <div style="display: flex; flex-direction: column;">
-                                                <span style="font-weight: 500;">${stage}</span>
-                                                <span class="stage-total">${stageTotal.toFixed(2)} ${appData.currency}</span>
+                                    <div class="swipe-item stage-item" data-name="${stage}" style="border-radius: 12px; padding: 10px; border: 1px solid var(--border-color); cursor: pointer; transition: all 0.2s ease;" onclick="openStagePhotos('${cat.id}', '${stage}')">
+                                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                                            <div style="display: flex; align-items: center; gap: 10px; flex-grow: 1;">
+                                                <button type="button" onclick="event.stopPropagation(); openStagePhotos('${cat.id}', '${stage}')" style="background: ${hasPhotos ? 'var(--success-color)' : 'var(--accent-color)'}; color: white; border: none; border-radius: 50%; width: 35px; height: 35px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 2px 5px rgba(0,0,0,0.1); cursor: pointer; position: relative;">
+                                                    <ion-icon name="camera" style="font-size: 1.2rem;"></ion-icon>
+                                                    ${hasPhotos ? `<span style="position: absolute; top: -5px; right: -5px; background: #ef4444; color: white; border-radius: 50%; width: 18px; height: 18px; font-size: 0.65rem; display: flex; align-items: center; justify-content: center; font-weight: bold;">${photosCount}</span>` : ''}
+                                                </button>
+                                                <div class="drag-handle" style="font-size: 1rem;" onclick="event.stopPropagation();"><ion-icon name="reorder-two-outline"></ion-icon></div>
+                                                <div style="display: flex; flex-direction: column;">
+                                                    <span style="font-weight: 500;">${stage}</span>
+                                                    <span class="stage-total">${stageTotal.toFixed(2)} ${appData.currency}</span>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -339,13 +397,15 @@ function renderCategories() {
 
     // Initialize Sortable for categories
     new Sortable(categoryListContainer, {
-        animation: 150,
+        animation: 200,
         handle: '.drag-handle',
+        swapThreshold: 0.65,
+        onStart: function() { isSortableDragging = true; },
         onEnd: function () {
+            isSortableDragging = false;
             const newOrder = Array.from(categoryListContainer.querySelectorAll('.category-card')).map(el => el.getAttribute('data-id'));
             appData.categories.sort((a, b) => newOrder.indexOf(a.id) - newOrder.indexOf(b.id));
             saveData();
-            // We don't re-render here to prevent losing expanded state/flickering
         }
     });
 
@@ -367,14 +427,24 @@ function renderCategories() {
         });
 
         new Sortable(list, {
-            animation: 150,
+            animation: 0,
             handle: '.drag-handle',
+            swapThreshold: 0.65,
+            ghostClass: 'sortable-ghost-stage',
+            dragClass: 'sortable-drag',
+            onStart: function() { isSortableDragging = true; },
             onEnd: function () {
+                isSortableDragging = false;
+                // Force-clear ALL inline styles SortableJS may leave on any element
+                list.querySelectorAll('*').forEach(el => {
+                    el.style.opacity = '';
+                    el.style.display = '';
+                });
                 const cat = appData.categories.find(c => c.id === catId);
                 const newOrder = Array.from(list.querySelectorAll('.stage-item')).map(el => el.getAttribute('data-name'));
-                cat.stages.sort((a, b) => newOrder.indexOf(a) - newOrder.indexOf(b));
+                cat.stages = newOrder;
                 saveData();
-                renderCategories(); // Re-render to update idx attributes
+                setTimeout(() => renderCategories(), 30);
             }
         });
     });
@@ -401,6 +471,8 @@ function setupSwipe(container, actions) {
     const buttonWidth = 80;
 
     const onStart = (e) => {
+        if (isSortableDragging) return;
+        if (e.target.closest('.drag-handle')) return;
         e.stopPropagation();
         startX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
         canSwipe = false;
@@ -448,6 +520,11 @@ function setupSwipe(container, actions) {
     };
 
     const onEnd = (e) => {
+        // If SortableJS is dragging, let the event bubble up so SortableJS can finish the drop
+        if (isSortableDragging) {
+            clearTimeout(holdTimer);
+            return;
+        }
         e.stopPropagation();
         clearTimeout(holdTimer);
         item.style.boxShadow = 'none';
@@ -578,6 +655,7 @@ function renderReports() {
                                 <div class="report-note-display" style="display: none; margin-right: 12px; padding-top: 4px;">
                                     <span style="display:block; color: var(--text-secondary); font-size: 0.7rem;">أضيف في: ${new Date(e.date).toLocaleString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                                     ${e.notes ? `<span style="color: var(--text-secondary); font-size: 0.75rem;">(${e.notes})</span>` : ''}
+                                    ${e.image ? `<div style="margin-top: 8px;"><img src="${e.image}" style="width: 100%; max-width: 200px; border-radius: 5px; cursor: zoom-in;" onclick="event.stopPropagation(); document.getElementById('viewer-image').src=this.src; document.getElementById('image-viewer-modal').classList.add('active');"></div>` : ''}
                                 </div>
                             </div>
                             <span style="color: var(--text-secondary);">${parseFloat(e.amount).toFixed(2)}</span>
@@ -749,6 +827,15 @@ function openEditExpense(id) {
     document.getElementById('exp-amount').value = exp.amount;
     document.getElementById('exp-notes').value = exp.notes || '';
     
+    // Set Image
+    currentExpenseImage = exp.image || null;
+    if (currentExpenseImage) {
+        previewImg.src = currentExpenseImage;
+        imagePreview.style.display = 'block';
+    } else {
+        imagePreview.style.display = 'none';
+    }
+    
     document.getElementById('modal-expense-title').textContent = 'تعديل المصروف';
     document.getElementById('delete-expense-btn').style.display = 'block';
     addExpenseModal.classList.add('active');
@@ -759,6 +846,8 @@ function setupEventListeners() {
     document.getElementById('add-expense-btn').onclick = () => {
         editingExpenseId = null;
         expenseForm.reset();
+        currentExpenseImage = null;
+        imagePreview.style.display = 'none';
         document.getElementById('modal-expense-title').textContent = 'إضافة مصروف جديد';
         document.getElementById('delete-expense-btn').style.display = 'none';
         populateSelects();
@@ -766,8 +855,9 @@ function setupEventListeners() {
     };
     
     document.querySelectorAll('.close-modal').forEach(btn => {
-        btn.onclick = () => {
-            addExpenseModal.classList.remove('active');
+        btn.onclick = (e) => {
+            const modal = e.target.closest('.modal');
+            if (modal) modal.classList.remove('active');
         };
     });
 
@@ -785,6 +875,7 @@ function setupEventListeners() {
                 exp.item = document.getElementById('exp-item').value;
                 exp.amount = document.getElementById('exp-amount').value;
                 exp.notes = document.getElementById('exp-notes').value;
+                exp.image = currentExpenseImage;
             }
         } else {
             const newExpense = {
@@ -795,6 +886,7 @@ function setupEventListeners() {
                 item: document.getElementById('exp-item').value,
                 amount: document.getElementById('exp-amount').value,
                 notes: document.getElementById('exp-notes').value,
+                image: currentExpenseImage,
                 date: new Date().toISOString()
             };
             appData.expenses.push(newExpense);
@@ -811,6 +903,24 @@ function setupEventListeners() {
             updateProjectContext();
             addExpenseModal.classList.remove('active');
         }
+    };
+
+    // Image Upload Events
+    uploadTrigger.onclick = () => expImageInput.click();
+    expImageInput.onchange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            compressImage(file, (base64) => {
+                currentExpenseImage = base64;
+                previewImg.src = base64;
+                imagePreview.style.display = 'block';
+            });
+        }
+    };
+    removeImageBtn.onclick = () => {
+        currentExpenseImage = null;
+        imagePreview.style.display = 'none';
+        expImageInput.value = '';
     };
 
     document.getElementById('add-new-stage-btn').onclick = () => {
@@ -1253,6 +1363,71 @@ function setupEventListeners() {
             }
         };
         reader.readAsText(file);
+    };
+}
+
+// Stage Photos Logic
+let currentStageKey = null;
+const stagePhotosModal = document.getElementById('stage-photos-modal');
+const stagePhotosList = document.getElementById('stage-photos-list');
+const stagePhotoInput = document.getElementById('stage-photo-input');
+
+function openStagePhotos(catId, stageName) {
+    currentStageKey = `${catId}_${stageName}`;
+    document.getElementById('modal-stage-title').textContent = `توثيق: ${stageName}`;
+    renderStagePhotos();
+    stagePhotosModal.classList.add('active');
+}
+
+function renderStagePhotos() {
+    stagePhotosList.innerHTML = '';
+    const photos = appData.stagePhotos[currentStageKey] || [];
+    
+    if (photos.length === 0) {
+        stagePhotosList.innerHTML = '<div style="grid-column: span 3; text-align: center; color: var(--text-secondary); padding: 20px;">لا توجد صور توثيق لهذه المرحلة.</div>';
+    }
+    
+    photos.forEach((photo, idx) => {
+        const div = document.createElement('div');
+        div.className = 'stage-photo-card';
+        div.style.position = 'relative';
+        div.innerHTML = `
+            <img src="${photo}" style="width: 100%; height: 100px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border-color); cursor: zoom-in;" onclick="document.getElementById('viewer-image').src=this.src; document.getElementById('image-viewer-modal').classList.add('active');">
+            <button onclick="deleteStagePhoto(${idx})" style="position: absolute; top: 5px; right: 5px; background: rgba(239, 68, 68, 0.8); color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; cursor: pointer;">×</button>
+        `;
+        stagePhotosList.appendChild(div);
+    });
+}
+
+function deleteStagePhoto(idx) {
+    if (confirm('هل تريد حذف هذه الصورة؟')) {
+        appData.stagePhotos[currentStageKey].splice(idx, 1);
+        saveData();
+        renderStagePhotos();
+        renderCategories();
+    }
+}
+
+if (stagePhotoInput) {
+    stagePhotoInput.onchange = (e) => {
+        const files = Array.from(e.target.files);
+        if (!appData.stagePhotos[currentStageKey]) appData.stagePhotos[currentStageKey] = [];
+        
+        let processed = 0;
+        files.forEach(file => {
+            compressImage(file, (base64) => {
+                if (!appData.stagePhotos[currentStageKey].includes(base64)) {
+                    appData.stagePhotos[currentStageKey].push(base64);
+                }
+                processed++;
+                if (processed === files.length) {
+                    saveData();
+                    renderStagePhotos();
+                    renderCategories();
+                    stagePhotoInput.value = '';
+                }
+            });
+        });
     };
 }
 
