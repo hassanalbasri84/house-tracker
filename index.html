@@ -21,12 +21,17 @@
     <!-- Export Libraries -->
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/gitbrent/PptxGenJS@3.12.0/dist/pptxgen.bundle.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';</script>
     <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="style.css">
 </head>
 
 <body class="dark-theme">
     <div class="app-container">
+        <!-- Selection Bar removed from here to use the floating one below -->
         <!-- Sidebar/Navigation for Desktop (Optional) & Mobile Bottom Nav -->
         <nav class="bottom-nav">
             <a href="#" class="nav-item active" data-view="dashboard">
@@ -62,25 +67,29 @@
             </header>
 
             <section id="view-dashboard" class="view active">
-                <div class="stats-grid">
-                    <div class="stat-card total-budget" style="background: linear-gradient(135deg, var(--accent-color), #2dd4bf);">
-                        <span class="label">إجمالي المصروفات</span>
-                        <h2 class="value" id="total-expense-val">0.00</h2>
-                        <span class="currency" id="currency-display">د.ك</span>
+                <div class="stats-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 20px;">
+                    <div class="stat-card" style="background: var(--card-bg); border: 1px solid var(--border-color); padding: 15px; border-radius: 15px; text-align: center;">
+                        <span class="label" style="color: var(--text-secondary); font-size: 0.75rem; display: block; margin-bottom: 5px;">إجمالي المصروف</span>
+                        <div style="display: flex; align-items: baseline; justify-content: center; gap: 4px;">
+                            <h2 class="value" id="total-expense-val" style="font-size: 1.2rem; color: var(--accent-color);">0.00</h2>
+                            <span class="currency" id="currency-display" style="font-size: 0.7rem; color: var(--text-secondary);">د.ب</span>
+                        </div>
                     </div>
-                    <div class="stat-card" style="background: var(--card-bg); border: 1px solid var(--border-color);">
-                        <span class="label" style="color: var(--text-secondary);">الميزانية المخصصة</span>
-                        <h2 class="value" id="total-budget-val" style="color: var(--text-primary); font-size: 1.5rem;">0.00</h2>
+                    <div class="stat-card" style="background: var(--card-bg); border: 1px solid var(--border-color); padding: 15px; border-radius: 15px; text-align: center;">
+                        <span class="label" style="color: var(--text-secondary); font-size: 0.75rem; display: block; margin-bottom: 5px;">الميزانية</span>
+                        <h2 class="value" id="total-budget-val" style="font-size: 1.2rem; color: var(--text-primary);">0.00</h2>
                     </div>
-                    <div class="stat-card" style="background: var(--card-bg); border: 1px solid var(--border-color);">
-                        <span class="label" style="color: var(--text-secondary);">المبلغ المتبقي</span>
-                        <h2 class="value" id="remaining-budget-val" style="color: var(--text-primary); font-size: 1.5rem;">0.00</h2>
+                    <div class="stat-card" style="background: var(--card-bg); border: 1px solid var(--border-color); padding: 15px; border-radius: 15px; text-align: center;">
+                        <span class="label" style="color: var(--text-secondary); font-size: 0.75rem; display: block; margin-bottom: 5px;">المتبقي</span>
+                        <h2 class="value" id="remaining-budget-val" style="font-size: 1.2rem; color: var(--text-primary);">0.00</h2>
                     </div>
                 </div>
 
                 <div class="section-title">
                     <h3>المصروفات</h3>
-                    <button class="text-btn">عرض الكل</button>
+                    <div style="display: flex; gap: 10px;">
+                        <!-- Selection button removed as requested -->
+                    </div>
                 </div>
                 <div class="recent-transactions" id="recent-list">
                     <!-- Transactions will be injected here -->
@@ -101,11 +110,17 @@
             </section>
 
             <section id="view-reports" class="view">
-                <div class="chart-container">
+                <div class="stats-grid" style="margin-bottom: 20px;">
+                    <div class="stat-card" style="display: flex; justify-content: space-between; align-items: center; padding: 15px; background: rgba(var(--accent-color-rgb), 0.05); border: 1px solid var(--accent-color);">
+                        <h3 style="font-size: 1rem; color: var(--accent-color);">التفاصيل المالية</h3>
+                        <button class="text-btn" id="toggle-all-reports" style="font-size: 0.8rem; background: var(--accent-color); color: white; padding: 5px 12px; border-radius: 20px;">فتح الكل</button>
+                    </div>
+                </div>
+                <div class="chart-container" style="background: var(--card-bg); border: 1px solid var(--border-color); padding: 1.5rem; border-radius: 20px; margin-bottom: 1.5rem;">
                     <canvas id="categoryChart"></canvas>
                 </div>
                 <div class="report-details" id="report-details-list">
-                    <!-- Breakdown by category -->
+                    <!-- Breakdown by category (Nested Accordion) -->
                 </div>
             </section>
 
@@ -142,28 +157,38 @@
                 </div>
 
                 <div class="settings-group">
-                    <h3>تصدير واستيراد البيانات</h3>
+                    <h3>تقارير المشروع (PDF)</h3>
+                    <div class="export-grid">
+                        <button class="action-btn" id="export-pdf" style="background: var(--accent-color); color: white;">
+                            <ion-icon name="document-text-outline"></ion-icon>
+                            <span>تقرير ملخص PDF</span>
+                        </button>
+                        <button class="action-btn" id="trigger-export-selection" style="background: #10b981; color: white;">
+                            <ion-icon name="images-outline"></ion-icon>
+                            <span>تصدير الأرصدة PDF</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <h3>إدارة البيانات والنسخ الاحتياطي</h3>
                     <div class="export-grid">
                         <button class="action-btn" id="export-excel">
-                            <ion-icon name="document-text-outline"></ion-icon>
+                            <ion-icon name="grid-outline"></ion-icon>
                             <span>تصدير Excel</span>
                         </button>
                         <button class="action-btn" id="import-excel-trigger">
-                            <ion-icon name="document-attach-outline"></ion-icon>
+                            <ion-icon name="cloud-upload-outline"></ion-icon>
                             <span>استيراد Excel</span>
                         </button>
                         <input type="file" id="import-excel-file" style="display: none;" accept=".xlsx, .xls">
 
-                        <button class="action-btn" id="export-pdf">
-                            <ion-icon name="download-outline"></ion-icon>
-                            <span>تصدير PDF</span>
-                        </button>
                         <button class="action-btn" id="export-json">
-                            <ion-icon name="cloud-upload-outline"></ion-icon>
+                            <ion-icon name="save-outline"></ion-icon>
                             <span>تصدير Backup</span>
                         </button>
-                        <button class="action-btn" id="import-trigger" style="grid-column: span 2;">
-                            <ion-icon name="cloud-download-outline"></ion-icon>
+                        <button class="action-btn" id="import-trigger">
+                            <ion-icon name="download-outline"></ion-icon>
                             <span>استعادة Backup</span>
                         </button>
                         <input type="file" id="import-file" style="display: none;" accept=".json">
@@ -191,6 +216,29 @@
         </main>
 
         <!-- Modals -->
+        <!-- Receipt Selection Modal -->
+        <div class="modal" id="receipt-selection-modal">
+            <div class="modal-content" style="max-width: 500px; height: 80vh; display: flex; flex-direction: column;">
+                <div class="modal-header">
+                    <h2>اختيار الأرصدة للتصدير</h2>
+                    <button class="close-modal" type="button"><ion-icon name="close-outline"></ion-icon></button>
+                </div>
+                <div style="padding: 10px; display: flex; gap: 5px;">
+                    <button class="text-btn" id="modal-select-all" style="flex: 1; background: rgba(var(--accent-color-rgb), 0.1);">تحديد الكل</button>
+                    <button class="text-btn" id="modal-select-images" style="flex: 1; background: rgba(16, 185, 129, 0.1);">المصور فقط</button>
+                </div>
+                <div id="selection-list-container" style="flex: 1; overflow-y: auto; padding: 10px;">
+                    <!-- List of expenses with checkboxes -->
+                </div>
+                <div class="modal-footer" style="padding: 15px; border-top: 1px solid var(--border-color);">
+                    <button class="action-btn" id="modal-confirm-export" style="width: 100%; background: #10b981; color: white;">
+                        <ion-icon name="document-outline"></ion-icon>
+                        <span>بدء التصدير الآن</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <div class="modal" id="add-expense-modal">
             <div class="modal-content">
                 <div class="modal-header">
@@ -246,9 +294,12 @@
 
 <div class="modal" id="stage-photos-modal">
 <div class="modal-content" style="max-width: 500px;">
-<div class="modal-header">
+<div class="modal-header" style="display: flex; justify-content: space-between; align-items: center;">
     <h2 id="modal-stage-title">توثيق المرحلة</h2>
-    <button class="close-modal" type="button" onclick="document.getElementById('stage-photos-modal').classList.remove('active')"><ion-icon name="close-outline"></ion-icon></button>
+    <div style="display: flex; gap: 10px; align-items: center;">
+        <button id="manage-photos-btn" onclick="toggleDeleteMode()" style="background: none; border: 1px solid var(--border-color); color: var(--text-secondary); padding: 4px 10px; border-radius: 8px; font-size: 0.75rem;">تعديل</button>
+        <button class="close-modal" type="button" onclick="document.getElementById('stage-photos-modal').classList.remove('active')"><ion-icon name="close-outline" style="font-size: 1.5rem;"></ion-icon></button>
+    </div>
 </div>
 <div id="stage-photos-list" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; max-height: 400px; overflow-y: auto;">
     <!-- Photos here -->
@@ -268,15 +319,61 @@
     <button class="close-modal" type="button" style="position: absolute; top: 20px; right: 20px; background: none; border: none; color: white; font-size: 2.5rem; cursor: pointer; padding: 10px; z-index: 2001;">
         <ion-icon name="close-outline"></ion-icon>
     </button>
-    <img id="viewer-image" src="" style="width: 95%; max-height: 90vh; object-fit: contain; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); border-radius: 10px;">
+    
+    <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; position: relative;">
+        <button onclick="showPrevPhoto()" id="viewer-prev" style="position: absolute; left: 10px; background: rgba(255,255,255,0.1); color: white; border: none; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; z-index: 2001;">
+            <ion-icon name="chevron-back-outline" style="font-size: 1.5rem;"></ion-icon>
+        </button>
+        
+        <img id="viewer-image" src="" style="width: 95%; max-height: 90vh; object-fit: contain; border-radius: 10px;">
+        
+        <button onclick="showNextPhoto()" id="viewer-next" style="position: absolute; right: 10px; background: rgba(255,255,255,0.1); color: white; border: none; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; z-index: 2001;">
+            <ion-icon name="chevron-forward-outline" style="font-size: 1.5rem;"></ion-icon>
+        </button>
+    </div>
+</div>
+
+<div id="selection-bar" style="position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 450px; background: var(--card-bg); border: 1px solid var(--accent-color); border-radius: 15px; padding: 10px 20px; display: none; justify-content: space-between; align-items: center; z-index: 1500; box-shadow: 0 5px 25px rgba(0,0,0,0.3); animation: slideUp 0.3s ease;">
+    <div style="display: flex; flex-direction: column;">
+        <span id="selected-count" style="font-size: 0.9rem; font-weight: bold; color: var(--accent-color);">0 مختارة</span>
+        <button class="text-btn" id="select-all-btn" style="font-size: 0.75rem; color: var(--text-secondary); text-decoration: underline;">تحديد الكل</button>
+    </div>
+    <button class="action-btn" id="bulk-export-receipts" style="padding: 8px 15px; font-size: 0.9rem;">
+        <ion-icon name="document-text-outline"></ion-icon>
+        <span>تصدير ملف PDF</span>
+    </button>
 </div>
     </div>
+    <!-- Export Preview Modal -->
+    <div id="export-preview-modal" class="modal">
+        <div class="modal-content" style="max-width: 900px; height: 90vh; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <h2>معاينة الملف قبل التصدير</h2>
+                <button class="close-modal" onclick="document.getElementById('export-preview-modal').style.display='none'">
+                    <ion-icon name="close-outline"></ion-icon>
+                </button>
+            </div>
+            <div id="preview-scroll-area" style="flex: 1; overflow-y: auto; background: #eee; padding: 20px; border-radius: 8px;">
+                <!-- PDF pages will be previewed here -->
+            </div>
+            <div class="modal-footer" style="padding: 15px; display: flex; gap: 10px; justify-content: center;">
+                <button class="action-btn" id="confirm-download-pdf" style="background: var(--accent-color); color: white; width: 200px;">
+                    <ion-icon name="cloud-download-outline"></ion-icon>
+                    <span>تحميل ملف PDF الآن</span>
+                </button>
+                <button class="action-btn" onclick="document.getElementById('export-preview-modal').style.display='none'" style="width: 120px;">
+                    <span>إلغاء</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script src="script.js"></script>
     <script>
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js');
         }
-    </script>طأ
+    </script>
 </body>
 
 </html>
