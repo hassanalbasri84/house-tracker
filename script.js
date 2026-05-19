@@ -91,6 +91,12 @@ function init() {
     setupNavigation();
     setupEventListeners();
     updateProjectContext();
+    if (globalData.preRestoreState) {
+        switchView('settings');
+        navItems.forEach(n => n.classList.remove('active'));
+        const sItem = Array.from(navItems).find(n => n.getAttribute('data-view') === 'settings');
+        if (sItem) sItem.classList.add('active');
+    }
 }
 
 function ensureOtherCategory(cats) {
@@ -211,7 +217,7 @@ function switchView(viewId) {
     if (viewId === 'reports') renderReports();
     if (viewId === 'dashboard') renderDashboard();
     if (viewId === 'categories') renderCategories();
-    if (viewId === 'settings') { renderBackups(); renderTrash(); }
+    if (viewId === 'settings') { renderUndoBanner(); renderBackups(); renderTrash(); }
 }
 
 // Rendering
@@ -525,12 +531,14 @@ window.resetToStandardCategories = () => {
 
 window.deleteCurrentProject = () => {
     if (globalData.projects.length <= 1) return alert('لا يمكن حذف المشروع الوحيد. أضف مشروعاً آخر أولاً.');
-    if (confirm(`هل أنت متأكد من حذف مشروع "${appData.projectName}" نهائياً؟`)) {
+    if (confirm(`هل أنت متأكد من حذف مشروع "${appData.projectName}"؟`)) {
+        savePreRestoreSnapshot('تم حذف المشروع.');
         globalData.trash.projects.push(appData);
         globalData.projects = globalData.projects.filter(p => p.id !== appData.id);
         globalData.currentProjectId = globalData.projects[0].id;
         saveData();
         updateProjectContext();
+        renderUndoBanner();
     }
 };
 
@@ -702,12 +710,20 @@ function renderReports() {
     reportList.innerHTML = '';
 
     try {
+        if (!appData || !appData.categories) throw new Error("بيانات المشروع غير متوفرة");
+
         const catData = appData.categories.map(cat => {
             const catExpenses = appData.expenses.filter(e => String(e.categoryId) === String(cat.id));
             const total = catExpenses.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
             
-            const stages = cat.stages.map(stageName => {
-                const sExps = catExpenses.filter(e => e.stage === stageName);
+            // Self-healing: Merge stages from expenses into cat.stages for report accuracy
+            // Convert any empty/falsy stages to 'عام' or 'بدون مرحلة' so they don't disappear
+            const allStagesInExp = [...new Set(catExpenses.map(e => e.stage || 'بدون مرحلة'))];
+            const catStagesSafe = (cat.stages || []).map(s => s || 'بدون مرحلة');
+            const mergedStages = [...new Set([...catStagesSafe, ...allStagesInExp])];
+
+            const stages = mergedStages.map(stageName => {
+                const sExps = catExpenses.filter(e => (e.stage || 'بدون مرحلة') === stageName);
                 return {
                     name: stageName,
                     total: sExps.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0),
@@ -719,7 +735,7 @@ function renderReports() {
         }).filter(c => c.total > 0);
 
         if (catData.length === 0) {
-            reportList.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-secondary);">لا توجد مصروفات لعرضها في التقرير.</div>';
+            reportList.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-secondary);">لا توجد مصروفات لعرضها في التقرير حالياً.</div>';
             return;
         }
 
@@ -745,33 +761,33 @@ function renderReports() {
         catData.forEach(cat => {
             const catEl = document.createElement('div');
             catEl.className = 'report-cat-group';
-            catEl.style.marginBottom = '15px';
+            catEl.style.marginBottom = '12px';
             catEl.innerHTML = `
-                <div class="accordion-header cat-header" onclick="toggleAccordion(this)" style="display: flex; justify-content: space-between; align-items: center; padding: 15px; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; cursor: pointer;">
+                <div class="accordion-header cat-header" onclick="toggleAccordion(this)" style="display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; cursor: pointer; transition: 0.2s;">
                     <div style="display: flex; align-items: center; gap: 10px;">
-                        <ion-icon name="chevron-down-outline" class="arrow" style="transition: transform 0.3s; color: var(--accent-color);"></ion-icon>
-                        <span style="font-weight: bold; color: var(--text-primary); font-size: 1rem;">${cat.name}</span>
+                        <ion-icon name="chevron-down-outline" class="arrow" style="transition: transform 0.3s; color: var(--accent-color); font-size: 1.1rem;"></ion-icon>
+                        <span style="font-weight: 600; color: var(--text-primary); font-size: 0.95rem;">${cat.name}</span>
                     </div>
-                    <span style="font-weight: bold; color: var(--accent-color);">${cat.total.toFixed(2)}</span>
+                    <span style="font-weight: 700; color: var(--accent-color);">${cat.total.toFixed(2)}</span>
                 </div>
-                <div class="accordion-content details-container" style="display: none; padding: 10px; background: rgba(255,158,11,0.03); border: 1px solid var(--border-color); border-top: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;">
+                <div class="accordion-content details-container" style="display: none; padding: 5px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-top: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; margin-top: -5px;">
                     ${cat.stages.map(stage => `
-                        <div class="stage-group" style="margin-bottom: 8px;">
-                            <div class="stage-header" onclick="toggleAccordion(this)" style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: rgba(255,255,255,0.03); border-radius: 10px; cursor: pointer; border: 1px solid rgba(255,255,255,0.05);">
+                        <div class="stage-group" style="margin-bottom: 5px;">
+                            <div class="stage-header" onclick="toggleAccordion(this)" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: rgba(255,255,255,0.03); border-radius: 10px; cursor: pointer; border: 1px solid rgba(255,255,255,0.05);">
                                 <div style="display: flex; align-items: center; gap: 8px;">
                                     <ion-icon name="chevron-forward-outline" class="arrow" style="transition: transform 0.3s; font-size: 0.8rem; color: var(--text-secondary);"></ion-icon>
-                                    <span style="font-weight: 500; color: var(--text-primary); font-size: 0.9rem;">${stage.name}</span>
+                                    <span style="font-weight: 500; color: var(--text-primary); font-size: 0.85rem;">${stage.name}</span>
                                 </div>
-                                <span style="font-size: 0.85rem; color: var(--accent-color);">${stage.total.toFixed(2)}</span>
+                                <span style="font-size: 0.8rem; color: var(--accent-color); font-weight: 600;">${stage.total.toFixed(2)}</span>
                             </div>
-                            <div class="stage-content" style="display: none; padding: 8px 10px 8px 30px;">
+                            <div class="accordion-content stage-content" style="display: none; padding: 5px 10px 5px 25px;">
                                 ${stage.expenses.map(e => `
-                                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px dashed rgba(255,255,255,0.05); font-size: 0.8rem;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 0.75rem;">
                                         <div style="display: flex; flex-direction: column;">
-                                            <span style="color: var(--text-primary);">${e.item}</span>
-                                            <span style="font-size: 0.65rem; color: var(--text-secondary);">${new Date(e.date).toLocaleDateString('ar-EG')}</span>
+                                            <span style="color: var(--text-primary); font-weight: 500;">${e.item}</span>
+                                            <span style="font-size: 0.6rem; color: var(--text-secondary);">${new Date(e.date).toLocaleDateString('ar-EG')}</span>
                                         </div>
-                                        <span style="font-weight: 500; color: var(--text-primary);">${parseFloat(e.amount || 0).toFixed(2)}</span>
+                                        <span style="font-weight: 600; color: var(--text-primary);">${parseFloat(e.amount || 0).toFixed(2)}</span>
                                     </div>
                                 `).join('')}
                             </div>
@@ -781,9 +797,27 @@ function renderReports() {
             `;
             reportList.appendChild(catEl);
         });
+
+        // Add Overall Total Row at the bottom
+        const grandTotal = appData.expenses.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
+        const totalEl = document.createElement('div');
+        totalEl.style.marginTop = '20px';
+        totalEl.style.padding = '15px 18px';
+        totalEl.style.background = 'var(--accent-color)';
+        totalEl.style.color = '#fff';
+        totalEl.style.borderRadius = '12px';
+        totalEl.style.display = 'flex';
+        totalEl.style.justifyContent = 'space-between';
+        totalEl.style.alignItems = 'center';
+        totalEl.innerHTML = `
+            <span style="font-weight: bold; font-size: 1rem;">الإجمالي الكلي للمصروفات</span>
+            <span style="font-weight: bold; font-size: 1.1rem;">${grandTotal.toFixed(2)} ${appData.currency}</span>
+        `;
+        reportList.appendChild(totalEl);
+
     } catch (err) {
         console.error("Report Rendering Error:", err);
-        reportList.innerHTML = '<div style="color: #ef4444; padding: 20px;">حدث خطأ أثناء عرض التقرير.</div>';
+        reportList.innerHTML = `<div style="color: #ef4444; padding: 30px; text-align: center; background: rgba(239, 68, 68, 0.05); border-radius: 15px;">حدث خطأ أثناء عرض التقرير: ${err.message}</div>`;
     }
 }
 
@@ -938,25 +972,51 @@ if (toggleAllBtn) {
     };
 }
 
+function savePreRestoreSnapshot(msg) {
+    globalData.preRestoreState = {
+        msg: msg || "تم الإجراء بنجاح.",
+        projects: JSON.parse(JSON.stringify(globalData.projects)),
+        currentId: globalData.currentProjectId,
+        trash: JSON.parse(JSON.stringify(globalData.trash))
+    };
+    saveData();
+    renderUndoBanner();
+}
+
+function renderUndoBanner() {
+    const banner = document.getElementById('settings-undo-banner');
+    if (!banner) return;
+    if (globalData.preRestoreState) {
+        banner.innerHTML = `
+            <div style="background: var(--accent-color); color: white; padding: 16px 20px; border-radius: 14px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(var(--accent-color-rgb), 0.3); display: flex; flex-direction: column; gap: 12px; animation: slideDown 0.3s ease;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 700; font-size: 1.1rem;">${globalData.preRestoreState.msg}</span>
+                    <button class="text-btn" onclick="globalData.preRestoreState=null; saveData(); renderUndoBanner();" style="color: rgba(255,255,255,0.8); font-size: 1.2rem;"><ion-icon name="close-outline"></ion-icon></button>
+                </div>
+                <button class="action-btn" onclick="undoRestore()" style="background: white; color: var(--accent-color); font-weight: 700; width: 100%; justify-content: center; padding: 12px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                    <ion-icon name="arrow-undo-outline" style="font-size: 1.3rem;"></ion-icon>
+                    <span style="font-size: 1rem;">التراجع والعودة للوضع السابق</span>
+                </button>
+            </div>
+        `;
+    } else {
+        banner.innerHTML = '';
+    }
+}
+
 function renderBackups() {
     const list = document.getElementById('auto-backups-list');
     if (!list) return;
     list.innerHTML = '';
-    if (globalData.preRestoreState) {
-        const undoEl = document.createElement('div');
-        undoEl.style.marginBottom = '15px';
-        undoEl.innerHTML = `<div style="background: rgba(59, 130, 246, 0.1); border: 1px dashed var(--accent-color); padding: 12px; border-radius: 12px; display: flex; flex-direction: column; gap: 8px;"><span style="font-size: 0.85rem; color: var(--accent-color); font-weight: 600;">تمت الاستعادة بنجاح. هل تريد التراجع؟</span><button class="action-btn" onclick="undoRestore()" style="width: 100%; padding: 8px;">إلغاء الاستعادة والرجوع للحالة السابقة</button></div>`;
-        list.appendChild(undoEl);
-    }
     if (globalData.backups.length === 0) { list.innerHTML = '<div style="font-size: 0.8rem; color: var(--text-secondary); text-align: center; padding: 10px;">لا توجد نسخ تلقائية بعد.</div>'; return; }
-    list.innerHTML += globalData.backups.map(b => `<div style="background: var(--card-bg); padding: 12px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-color); margin-bottom: 8px;"><div style="display: flex; flex-direction: column;"><span style="font-size: 0.9rem; font-weight: 600;">${b.date}</span><span style="font-size: 0.75rem; color: var(--text-secondary);">نسخة تلقائية</span></div><button class="text-btn" onclick="restoreBackup(${b.id})" style="color: var(--accent-color); font-size: 0.85rem;">استعادة</button></div>`).join('');
+    list.innerHTML = globalData.backups.map(b => `<div style="background: var(--card-bg); padding: 12px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-color); margin-bottom: 8px;"><div style="display: flex; flex-direction: column;"><span style="font-size: 0.9rem; font-weight: 600;">${b.date}</span><span style="font-size: 0.75rem; color: var(--text-secondary);">نسخة تلقائية</span></div><button class="text-btn" onclick="restoreBackup(${b.id})" style="color: var(--accent-color); font-size: 0.85rem;">استعادة</button></div>`).join('');
 }
 
 window.restoreBackup = (id) => {
     if (confirm('هل أنت متأكد من استعادة هذه النسخة؟')) {
         const backup = globalData.backups.find(b => b.id === id);
         if (backup) {
-            globalData.preRestoreState = { projects: JSON.parse(JSON.stringify(globalData.projects)), currentId: globalData.currentProjectId };
+            savePreRestoreSnapshot('تمت استعادة النسخة التلقائية بنجاح.');
             globalData.projects = JSON.parse(JSON.stringify(backup.data));
             globalData.currentProjectId = backup.currentId;
             saveData(); location.reload();
@@ -968,7 +1028,10 @@ window.undoRestore = () => {
     if (globalData.preRestoreState) {
         globalData.projects = JSON.parse(JSON.stringify(globalData.preRestoreState.projects));
         globalData.currentProjectId = globalData.preRestoreState.currentId;
-        globalData.preRestoreState = null; saveData(); location.reload();
+        if (globalData.preRestoreState.trash) globalData.trash = JSON.parse(JSON.stringify(globalData.preRestoreState.trash));
+        globalData.preRestoreState = null; saveData();
+        alert('تم التراجع بنجاح وعودة البيانات إلى حالتها السابقة!');
+        location.reload();
     }
 };
 
@@ -985,10 +1048,11 @@ function renderTrash() {
 }
 
 window.restoreFromTrash = (type, id) => {
+    savePreRestoreSnapshot('تمت استعادة العنصر من سلة المحذوفات.');
     if (type === 'project') { const it = globalData.trash.projects.find(p => p.id === id); if (it) { globalData.projects.push(it); globalData.trash.projects = globalData.trash.projects.filter(p => p.id !== id); } }
     else if (type === 'category') { const it = globalData.trash.categories.find(c => c.id === id); if (it) { appData.categories.push(it); globalData.trash.categories = globalData.trash.categories.filter(c => c.id !== id); } }
     else if (type === 'expense') { const it = globalData.trash.expenses.find(e => e.id == id); if (it) { appData.expenses.push(it); globalData.trash.expenses = globalData.trash.expenses.filter(e => e.id != id); } }
-    saveData(); updateProjectContext(); renderTrash();
+    saveData(); updateProjectContext(); renderTrash(); renderUndoBanner();
 };
 
 function populateSelects() {
@@ -1014,7 +1078,81 @@ function openEditExpense(id) {
     addExpenseModal.classList.add('active');
 }
 
+// Theme and PWA Setup
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    const pwaBtn = document.getElementById('pwa-install-btn');
+    if (pwaBtn) pwaBtn.style.display = 'flex';
+});
+
+function initTheme() {
+    const savedTheme = localStorage.getItem('bunyan_theme') || 'dark';
+    const body = document.body;
+    const themeText = document.getElementById('theme-toggle-text');
+    if (savedTheme === 'light') {
+        body.classList.add('light-theme');
+        if (themeText) themeText.textContent = 'تفعيل الوضع الداكن';
+    } else {
+        body.classList.remove('light-theme');
+        if (themeText) themeText.textContent = 'تفعيل الوضع الفاتح';
+    }
+}
+initTheme();
+
 function setupEventListeners() {
+    const menuBtn = document.getElementById('header-menu-btn');
+    const dropdownMenu = document.getElementById('header-dropdown-menu');
+    if (menuBtn && dropdownMenu) {
+        menuBtn.onclick = (e) => {
+            e.stopPropagation();
+            dropdownMenu.style.display = dropdownMenu.style.display === 'flex' ? 'none' : 'flex';
+        };
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#header-dropdown-menu')) {
+                dropdownMenu.style.display = 'none';
+            }
+        });
+    }
+
+    const themeToggleBtn = document.getElementById('theme-toggle-btn');
+    if (themeToggleBtn) {
+        themeToggleBtn.onclick = (e) => {
+            e.stopPropagation();
+            const body = document.body;
+            const themeText = document.getElementById('theme-toggle-text');
+            if (body.classList.contains('light-theme')) {
+                body.classList.remove('light-theme');
+                localStorage.setItem('bunyan_theme', 'dark');
+                if (themeText) themeText.textContent = 'تفعيل الوضع الفاتح';
+            } else {
+                body.classList.add('light-theme');
+                localStorage.setItem('bunyan_theme', 'light');
+                if (themeText) themeText.textContent = 'تفعيل الوضع الداكن';
+            }
+            if (dropdownMenu) dropdownMenu.style.display = 'none';
+        };
+    }
+
+    const pwaInstallBtn = document.getElementById('pwa-install-btn');
+    if (pwaInstallBtn) {
+        pwaInstallBtn.onclick = async (e) => {
+            e.stopPropagation();
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') {
+                    deferredPrompt = null;
+                    pwaInstallBtn.style.display = 'none';
+                }
+            } else {
+                alert('لتثبيت التطبيق على هاتفك أو جهازك، يرجى الضغط على زر المشاركة أو قائمة المتصفح واختيار "إضافة إلى الشاشة الرئيسية" (Add to Home Screen).');
+            }
+            if (dropdownMenu) dropdownMenu.style.display = 'none';
+        };
+    }
+
     document.getElementById('add-expense-btn').onclick = () => {
         editingExpenseId = null; expenseForm.reset(); currentExpenseImage = null;
         imagePreview.style.display = 'none'; document.getElementById('modal-expense-title').textContent = 'إضافة مصروف جديد';
@@ -1063,14 +1201,103 @@ function setupEventListeners() {
     document.getElementById('budget-input').onchange = (e) => { appData.budget = parseFloat(e.target.value) || 0; saveData(); renderDashboard(); };
     document.getElementById('export-excel').onclick = () => {
         const rows = []; let grandTotal = 0;
-        appData.expenses.forEach((e, idx) => { rows.push({ 'م': idx+1, 'التاريخ': new Date(e.date).toLocaleDateString('ar-EG'), 'البند': e.category, 'المرحلة': e.stage, 'نوع المصروف': e.item, 'المبلغ': parseFloat(e.amount), 'ملاحظات': e.notes || '' }); grandTotal += parseFloat(e.amount); });
-        rows.push({}); rows.push({ 'نوع المصروف': 'الإجمالي الكلي:', 'المبلغ': grandTotal });
-        const ws = XLSX.utils.json_to_sheet(rows); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "تقرير"); XLSX.writeFile(wb, `${appData.projectName}_تقرير.xlsx`);
+        
+        // Build order maps to match exact custom order in the app
+        const catOrderMap = new Map();
+        const stageOrderMap = new Map();
+        appData.categories.forEach((cat, cIdx) => {
+            catOrderMap.set(String(cat.id), cIdx);
+            catOrderMap.set(cat.name, cIdx); // fallback
+            if (cat.stages) {
+                cat.stages.forEach((stg, sIdx) => {
+                    stageOrderMap.set(`${cat.id}_${stg}`, sIdx);
+                    stageOrderMap.set(`${cat.name}_${stg}`, sIdx); // fallback
+                });
+            }
+        });
+        
+        // Sort by App Category Order -> App Stage Order -> Date
+        const sortedExpenses = [...appData.expenses].sort((a, b) => {
+            const cIdxA = catOrderMap.has(String(a.categoryId)) ? catOrderMap.get(String(a.categoryId)) : (catOrderMap.has(a.category) ? catOrderMap.get(a.category) : 9999);
+            const cIdxB = catOrderMap.has(String(b.categoryId)) ? catOrderMap.get(String(b.categoryId)) : (catOrderMap.has(b.category) ? catOrderMap.get(b.category) : 9999);
+            if (cIdxA !== cIdxB) return cIdxA - cIdxB;
+
+            const stgKeyA = `${a.categoryId}_${a.stage}`; const stgKeyA_fb = `${a.category}_${a.stage}`;
+            const sIdxA = stageOrderMap.has(stgKeyA) ? stageOrderMap.get(stgKeyA) : (stageOrderMap.has(stgKeyA_fb) ? stageOrderMap.get(stgKeyA_fb) : 9999);
+            const stgKeyB = `${b.categoryId}_${b.stage}`; const stgKeyB_fb = `${b.category}_${b.stage}`;
+            const sIdxB = stageOrderMap.has(stgKeyB) ? stageOrderMap.get(stgKeyB) : (stageOrderMap.has(stgKeyB_fb) ? stageOrderMap.get(stgKeyB_fb) : 9999);
+            if (sIdxA !== sIdxB) return sIdxA - sIdxB;
+
+            return new Date(a.date) - new Date(b.date);
+        });
+
+        sortedExpenses.forEach((e, idx) => {
+            const dt = new Date(e.date);
+            rows.push({
+                'م': idx + 1,
+                'التاريخ': dt.toLocaleDateString('ar-EG'),
+                'الوقت': dt.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
+                'البند': e.category || 'غير محدد',
+                'المرحلة': e.stage || 'بدون مرحلة',
+                'نوع المصروف': e.item || '',
+                'المبلغ': parseFloat(e.amount || 0),
+                'ملاحظات': e.notes || ''
+            });
+            grandTotal += parseFloat(e.amount || 0);
+        });
+        
+        rows.push({});
+        rows.push({ 'نوع المصروف': 'الإجمالي الكلي:', 'المبلغ': grandTotal });
+        
+        const ws = XLSX.utils.json_to_sheet(rows);
+        
+        // Set column widths to prevent clipped content
+        ws['!cols'] = [
+            { wch: 6 },  // Index
+            { wch: 14 }, // Date
+            { wch: 12 }, // Time
+            { wch: 28 }, // Category
+            { wch: 28 }, // Stage
+            { wch: 35 }, // Item
+            { wch: 16 }, // Amount
+            { wch: 45 }  // Notes
+        ];
+        ws['!views'] = [{ rightToLeft: true }];
+        
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "تقرير المصروفات");
+        XLSX.writeFile(wb, `${appData.projectName}_تقرير.xlsx`);
     };
     document.getElementById('add-main-cat-btn').onclick = addMainCategory;
     document.getElementById('reset-to-standard-cats-btn').onclick = resetToStandardCategories;
     document.getElementById('delete-current-project-btn').onclick = deleteCurrentProject;
-    document.getElementById('reset-data').onclick = () => { if(confirm('سيتم مسح جميع البيانات والمشاريع نهائياً. هل أنت متأكد؟')) { localStorage.removeItem('bunyan_data'); location.reload(); } };
+    document.getElementById('reset-data').onclick = () => {
+        if (confirm('سيتم مسح جميع البيانات والمشاريع. هل أنت متأكد؟')) {
+            const snap = {
+                msg: 'تم مسح جميع البيانات والمشاريع.',
+                projects: JSON.parse(JSON.stringify(globalData.projects)),
+                currentId: globalData.currentProjectId,
+                trash: JSON.parse(JSON.stringify(globalData.trash))
+            };
+            const preservedBackups = JSON.parse(JSON.stringify(globalData.backups));
+            const newId = 'proj_' + Date.now();
+            globalData.projects = [{
+                id: newId,
+                projectName: 'مشروع جديد',
+                currency: 'د.ب',
+                categories: JSON.parse(JSON.stringify(defaultCategories)),
+                expenses: []
+            }];
+            globalData.currentProjectId = newId;
+            globalData.trash = { projects: [], categories: [], stages: [], expenses: [] };
+            globalData.actionCounter = 0;
+            globalData.backups = preservedBackups;
+            globalData.preRestoreState = snap;
+            saveData();
+            alert('تم مسح المشاريع بنجاح مع الاحتفاظ بالنسخ الاحتياطية التلقائية وإمكانية التراجع!');
+            location.reload();
+        }
+    };
 
     document.getElementById('export-pdf').onclick = async () => {
         const btn = document.getElementById('export-pdf');
@@ -1079,117 +1306,153 @@ function setupEventListeners() {
         btn.disabled = true;
 
         try {
-            const chartImg = document.getElementById('categoryChart').toDataURL("image/png");
             const totalSpent = appData.expenses.reduce((sum, exp) => sum + parseFloat(exp.amount), 0);
             const budget = parseFloat(appData.budget) || 0;
             const remaining = budget - totalSpent;
 
-            const reportHTML = `
-                <div id="pdf-export-container" style="padding: 40px; direction: rtl; font-family: 'Tajawal', sans-serif; background: #fff; color: #000; width: 210mm; min-height: 297mm; box-sizing: border-box;">
-                    <div style="text-align: center; border-bottom: 2px solid #f59e0b; padding-bottom: 20px; margin-bottom: 30px;">
-                        <h1 style="color: #f59e0b; margin: 0; font-size: 28pt;">تقرير المصروفات المالي</h1>
-                        <h2 style="margin: 10px 0; color: #333; font-size: 20pt;">${appData.projectName}</h2>
-                        <p style="color: #666; font-size: 12pt;">تاريخ التقرير: ${new Date().toLocaleDateString('ar-EG')}</p>
-                    </div>
+            // Capture the chart as a high-res image
+            const pdfChartCanvas = document.createElement('canvas');
+            pdfChartCanvas.width = 1000;
+            pdfChartCanvas.height = 500;
+            const pdfChartCtx = pdfChartCanvas.getContext('2d');
+            
+            const catData = appData.categories.map(cat => {
+                const total = appData.expenses.filter(e => String(e.categoryId) === String(cat.id))
+                                            .reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
+                return { name: cat.name, total };
+            }).filter(c => c.total > 0);
 
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 40px; gap: 20px;">
-                        <div style="flex: 1; background: #f8fafc; padding: 20px; border-radius: 15px; text-align: center; border: 1px solid #e2e8f0;">
-                            <div style="font-size: 12pt; color: #64748b; margin-bottom: 8px;">الميزانية</div>
-                            <div style="font-size: 16pt; font-weight: bold; color: #1e293b;">${budget.toFixed(2)} ${appData.currency}</div>
-                        </div>
-                        <div style="flex: 1; background: #fffbeb; padding: 20px; border-radius: 15px; text-align: center; border: 1px solid #fef3c7;">
-                            <div style="font-size: 12pt; color: #b45309; margin-bottom: 8px;">إجمالي المصروف</div>
-                            <div style="font-size: 16pt; font-weight: bold; color: #92400e;">${totalSpent.toFixed(2)} ${appData.currency}</div>
-                        </div>
-                        <div style="flex: 1; background: ${remaining < 0 ? '#fef2f2' : '#f0fdf4'}; padding: 20px; border-radius: 15px; text-align: center; border: 1px solid ${remaining < 0 ? '#fee2e2' : '#dcfce7'};">
-                            <div style="font-size: 12pt; color: ${remaining < 0 ? '#ef4444' : '#15803d'}; margin-bottom: 8px;">المتبقي</div>
-                            <div style="font-size: 16pt; font-weight: bold; color: ${remaining < 0 ? '#b91c1c' : '#166534'};">${remaining.toFixed(2)} ${appData.currency}</div>
-                        </div>
-                    </div>
+            new Chart(pdfChartCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: catData.map(c => c.name),
+                    datasets: [{
+                        data: catData.map(c => c.total),
+                        backgroundColor: ['#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#ef4444', '#06b6d4', '#f97316', '#64748b']
+                    }]
+                },
+                options: { animation: false, responsive: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 14 } } } } }
+            });
 
-                    <div style="text-align: center; margin-bottom: 50px; page-break-inside: avoid;">
-                        <h3 style="color: #475569; margin-bottom: 20px; font-size: 16pt;">توزيع المصروفات حسب البنود</h3>
-                        <div style="display: flex; justify-content: center;">
-                            <img src="${chartImg}" style="width: 500px; height: auto;">
-                        </div>
-                    </div>
+            await new Promise(r => setTimeout(r, 600));
+            const chartImg = pdfChartCanvas.toDataURL("image/png");
 
-                    <div style="margin-top: 20px;">
-                        <h3 style="color: #475569; border-right: 6px solid #f59e0b; padding-right: 15px; margin-bottom: 25px; font-size: 18pt;">تفصيل البنود والمراحل</h3>
-                        <table style="width: 100%; border-collapse: collapse; margin-bottom: 40px;">
-                            <thead>
-                                <tr style="background: #f59e0b; color: white;">
-                                    <th style="padding: 15px; border: 1px solid #d97706; text-align: right; font-size: 12pt;">البند / المرحلة</th>
-                                    <th style="padding: 15px; border: 1px solid #d97706; text-align: left; font-size: 12pt;">المبلغ</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${appData.categories.map(cat => {
-                                    const catExps = appData.expenses.filter(e => String(e.categoryId) === String(cat.id));
-                                    if (catExps.length === 0) return '';
-                                    const catTotal = catExps.reduce((sum, e) => sum + parseFloat(e.amount), 0);
+            let reportHTML = `
+            <!DOCTYPE html>
+            <html dir="rtl">
+            <head>
+                <meta charset="UTF-8">
+                <title>تقرير ملخص مالي - ${appData.projectName}</title>
+                <style>
+                    @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap');
+                    @page { size: A4; margin: 10mm; }
+                    body { font-family: 'Tajawal', sans-serif; margin: 0; padding: 20px; background: #fff; color: #000; line-height: 1.6; }
+                    .header { text-align: center; border-bottom: 3px solid #f59e0b; padding-bottom: 20px; margin-bottom: 30px; }
+                    .header h1 { color: #f59e0b; margin: 0; font-size: 28pt; }
+                    .stats-grid { display: flex; gap: 15px; margin-bottom: 30px; }
+                    .stat-box { flex: 1; padding: 15px; border-radius: 12px; text-align: center; border: 1px solid #e2e8f0; }
+                    .stat-box .label { font-size: 10pt; color: #64748b; margin-bottom: 5px; }
+                    .stat-box .val { font-size: 16pt; font-weight: bold; }
+                    .table-section { margin-top: 30px; }
+                    table { width: 100%; border-collapse: collapse; }
+                    th { background: #f59e0b; color: #fff; padding: 12px; text-align: right; border: 1px solid #d97706; }
+                    td { padding: 10px; border: 1px solid #eee; text-align: right; }
+                    .cat-row { background: #fff8e6; font-weight: bold; }
+                    .stage-row { background: #f8fafc; }
+                    .stage-row td { padding-right: 40px; color: #333; font-size: 11pt; border-bottom: 2px solid #e2e8f0; }
+                    .chart-wrap { text-align: center; margin: 30px 0; page-break-inside: avoid; }
+                    @media print { .no-print { display: none; } }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>تقرير المصروفات المالي</h1>
+                    <h2 style="margin: 10px 0; color: #333;">${appData.projectName}</h2>
+                    <p style="color: #666;">تاريخ التقرير: ${new Date().toLocaleDateString('ar-EG')}</p>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-box" style="background: #f8fafc;">
+                        <div class="label">الميزانية</div>
+                        <div class="val">${budget.toFixed(2)} ${appData.currency}</div>
+                    </div>
+                    <div class="stat-box" style="background: #fffbeb;">
+                        <div class="label">إجمالي المصروف</div>
+                        <div class="val" style="color: #92400e;">${totalSpent.toFixed(2)} ${appData.currency}</div>
+                    </div>
+                    <div class="stat-box" style="background: ${remaining < 0 ? '#fef2f2' : '#f0fdf4'};">
+                        <div class="label">المتبقي</div>
+                        <div class="val" style="color: ${remaining < 0 ? '#b91c1c' : '#166534'};">${remaining.toFixed(2)} ${appData.currency}</div>
+                    </div>
+                </div>
+
+                <div class="chart-wrap">
+                    <h3 style="color: #475569; margin-bottom: 15px;">توزيع المصروفات حسب البنود</h3>
+                    <img src="${chartImg}" style="width: 170mm; height: auto;">
+                </div>
+
+                <div class="table-section">
+                    <h3 style="color: #475569; border-right: 5px solid #f59e0b; padding-right: 15px; margin-bottom: 20px;">تفصيل البنود والمراحل</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>البند / المرحلة</th>
+                                <th style="text-align: left;">المبلغ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${appData.categories.map(cat => {
+                                const catExps = appData.expenses.filter(e => String(e.categoryId) === String(cat.id));
+                                if (catExps.length === 0) return '';
+                                const catTotal = catExps.reduce((sum, e) => sum + parseFloat(e.amount), 0);
+                                const usedStages = [...new Set([...cat.stages, ...catExps.map(e => e.stage)])].filter(Boolean);
+                                
+                                let rows = `<tr class="cat-row"><td>${cat.name}</td><td style="text-align: left;">${catTotal.toFixed(2)}</td></tr>`;
+                                usedStages.forEach(stage => {
+                                    const sExps = catExps.filter(e => e.stage === stage);
+                                    if (sExps.length === 0) return;
+                                    const sTotal = sExps.reduce((sum, e) => sum + parseFloat(e.amount), 0);
+                                    rows += `<tr class="stage-row"><td style="font-weight: bold;">${stage}</td><td style="text-align: left; font-weight: bold;">${sTotal.toFixed(2)}</td></tr>`;
                                     
-                                    let rows = `
-                                        <tr style="background: #fff8e6; font-weight: bold; page-break-inside: avoid;">
-                                            <td style="padding: 15px; border: 1px solid #fde68a; text-align: right; font-size: 12pt;">${cat.name}</td>
-                                            <td style="padding: 15px; border: 1px solid #fde68a; text-align: left; font-size: 12pt;">${catTotal.toFixed(2)}</td>
-                                        </tr>
-                                    `;
-
-                                    cat.stages.forEach(stage => {
-                                        const sExps = catExps.filter(e => e.stage === stage);
-                                        if (sExps.length === 0) return;
-                                        const sTotal = sExps.reduce((sum, e) => sum + parseFloat(e.amount), 0);
+                                    sExps.forEach(exp => {
                                         rows += `
-                                            <tr style="page-break-inside: avoid;">
-                                                <td style="padding: 12px 40px; border: 1px solid #eee; text-align: right; color: #444; font-size: 11pt;">${stage}</td>
-                                                <td style="padding: 12px; border: 1px solid #eee; text-align: left; color: #444; font-size: 11pt;">${sTotal.toFixed(2)}</td>
+                                            <tr style="font-size: 9pt; color: #555;">
+                                                <td style="padding-right: 60px; border-top: 1px dotted #ccc;">
+                                                    <span style="display: block;">${exp.item}</span>
+                                                    <span style="font-size: 8pt; color: #888;">${new Date(exp.date).toLocaleDateString('ar-EG')}</span>
+                                                </td>
+                                                <td style="text-align: left; border-top: 1px dotted #ccc;">${parseFloat(exp.amount).toFixed(2)}</td>
                                             </tr>
                                         `;
                                     });
-                                    return rows;
-                                }).join('')}
-                            </tbody>
-                        </table>
-                    </div>
+                                });
+                                return rows;
+                            }).join('')}
+                            <tr style="background: #1e293b; color: white; font-weight: bold; font-size: 14pt;">
+                                <td style="padding: 15px; border: 1px solid #0f172a;">الإجمالي الكلي للمصروفات</td>
+                                <td style="padding: 15px; text-align: left; border: 1px solid #0f172a;">${totalSpent.toFixed(2)} ${appData.currency}</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
+
+                <script>
+                    window.onload = () => {
+                        setTimeout(() => {
+                            window.print();
+                        }, 800);
+                    };
+                </script>
+            </body>
+            </html>
             `;
 
-            const opt = {
-                margin: 0,
-                filename: `${appData.projectName}_ملخص_مالي.pdf`,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { 
-                    scale: 2, 
-                    useCORS: true, 
-                    letterRendering: true,
-                    logging: false,
-                    windowWidth: 1200
-                },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-                pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
-            };
-
-            // Create a temporary hidden container to render from
-            const tempContainer = document.createElement('div');
-            tempContainer.style.position = 'fixed';
-            tempContainer.style.left = '0';
-            tempContainer.style.top = '0';
-            tempContainer.style.width = '210mm';
-            tempContainer.style.zIndex = '-1000';
-            tempContainer.style.backgroundColor = '#ffffff';
-            tempContainer.innerHTML = reportHTML;
-            document.body.appendChild(tempContainer);
-
-            // Wait for image and fonts to settle
-            setTimeout(() => {
-                html2pdf().set(opt).from(tempContainer).save().then(() => {
-                    document.body.removeChild(tempContainer);
-                    btn.innerHTML = originalText;
-                    btn.disabled = false;
-                });
-            }, 1000);
-
+            const win = window.open('', '_blank');
+            win.document.write(reportHTML);
+            win.document.close();
+            
+            btn.innerHTML = originalText;
+            btn.disabled = false;
 
         } catch (error) {
             console.error(error);
@@ -1202,6 +1465,7 @@ function setupEventListeners() {
     document.getElementById('modal-select-all').onclick = () => {
         const checks = document.querySelectorAll('.expense-selection-check');
         checks.forEach(c => c.checked = true);
+        updateModalSelectionTotal();
     };
     document.getElementById('modal-select-images').onclick = () => {
         const checks = document.querySelectorAll('.expense-selection-check');
@@ -1209,6 +1473,7 @@ function setupEventListeners() {
             const hasImg = c.getAttribute('data-has-img') === 'true';
             c.checked = hasImg;
         });
+        updateModalSelectionTotal();
     };
     document.getElementById('modal-confirm-export').onclick = () => {
         const checks = document.querySelectorAll('.expense-selection-check:checked');
@@ -1219,6 +1484,117 @@ function setupEventListeners() {
     };
 
     document.getElementById('export-json').onclick = () => { const blob = new Blob([JSON.stringify(globalData)], {type: "application/json"}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = "backup.json"; a.click(); };
+
+    document.getElementById('import-trigger').onclick = () => document.getElementById('import-file').click();
+    document.getElementById('import-file').onchange = (e) => {
+        const file = e.target.files[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function() {
+            try {
+                const parsed = JSON.parse(this.result);
+                if (parsed.projects && parsed.currentProjectId) {
+                    const snap = {
+                        msg: 'تم استيراد النسخة الاحتياطية بنجاح.',
+                        projects: JSON.parse(JSON.stringify(globalData.projects)),
+                        currentId: globalData.currentProjectId,
+                        trash: JSON.parse(JSON.stringify(globalData.trash))
+                    };
+                    globalData = parsed;
+                    globalData.preRestoreState = snap;
+                    saveData(); alert('تمت استعادة النسخة الاحتياطية بنجاح!'); location.reload();
+                } else { alert('ملف النسخة الاحتياطية غير صالح أو تالف.'); }
+            } catch (err) { alert('حدث خطأ أثناء قراءة الملف.'); }
+        }; reader.readAsText(file);
+    };
+
+    document.getElementById('import-excel-trigger').onclick = () => document.getElementById('import-excel-file').click();
+    document.getElementById('import-excel-file').onchange = (e) => {
+        const file = e.target.files[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                savePreRestoreSnapshot('تم استيراد بيانات الإكسل بنجاح.');
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const rows = XLSX.utils.sheet_to_json(worksheet);
+                
+                let count = 0;
+                rows.forEach(r => {
+                    if (!r['المبلغ'] || r['نوع المصروف'] === 'الإجمالي الكلي:' || !r['نوع المصروف']) return;
+                    const amount = parseFloat(r['المبلغ']);
+                    if (isNaN(amount) || amount <= 0) return;
+
+                    const catName = (r['البند'] || 'أخرى').trim();
+                    const stageName = (r['المرحلة'] || 'عام').trim();
+                    const itemName = r['نوع المصروف'].trim();
+                    const notes = (r['ملاحظات'] || '').trim();
+
+                    let isoDate = new Date().toISOString();
+                    if (r['التاريخ']) {
+                        let dtStr = String(r['التاريخ']);
+                        let tmStr = r['الوقت'] ? String(r['الوقت']) : '12:00';
+                        try {
+                            let parts = dtStr.split(/[\/\-]/);
+                            if (parts.length === 3) {
+                                let day = parts[0]; let month = parts[1]; let year = parts[2];
+                                if (year.length === 2) year = '20' + year;
+                                if (parseInt(year) < 100 && parseInt(day) > 1000) { let tmp = day; day = year; year = tmp; }
+                                let parsedDt = new Date(`${year}-${month}-${day} ${tmStr}`);
+                                if (!isNaN(parsedDt.getTime())) isoDate = parsedDt.toISOString();
+                            }
+                        } catch(e) {}
+                    }
+
+                    let cat = appData.categories.find(c => c.name === catName);
+                    if (!cat) {
+                        cat = { id: 'cat_' + Date.now() + Math.random().toString(36).substr(2, 5), name: catName, icon: 'folder-outline', stages: [stageName] };
+                        appData.categories.push(cat);
+                    } else if (!cat.stages.includes(stageName)) {
+                        cat.stages.push(stageName);
+                    }
+
+                    appData.expenses.push({
+                        id: Date.now() + Math.random(),
+                        categoryId: cat.id,
+                        category: cat.name,
+                        stage: stageName,
+                        item: itemName,
+                        amount: amount,
+                        notes: notes,
+                        image: null,
+                        date: isoDate
+                    });
+                    count++;
+                });
+
+                if (count > 0) {
+                    saveData();
+                    updateProjectContext();
+                    alert(`تم استيراد ${count} مصروف بنجاح!`);
+                } else {
+                    alert('لم يتم العثور على مصروفات صالحة في ملف الإكسل. تأكد من مطابقة أسماء الأعمدة لقالب التصدير.');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('حدث خطأ أثناء معالجة ملف الإكسل.');
+            }
+            document.getElementById('import-excel-file').value = '';
+        };
+        reader.readAsArrayBuffer(file);
+    };
+}
+
+function updateModalSelectionTotal() {
+    const checks = document.querySelectorAll('.expense-selection-check:checked');
+    let total = 0;
+    checks.forEach(c => {
+        const exp = appData.expenses.find(e => String(e.id) === String(c.value));
+        if (exp) total += parseFloat(exp.amount || 0);
+    });
+    const totalEl = document.getElementById('modal-selection-total');
+    if (totalEl) totalEl.textContent = `${total.toFixed(2)} ${appData.currency}`;
 }
 
 function openReceiptSelectionModal() {
@@ -1244,9 +1620,12 @@ function openReceiptSelectionModal() {
                 </div>
                 ${exp.image ? '<ion-icon name="image-outline" style="color: var(--accent-color); font-size: 1.2rem;"></ion-icon>' : ''}
             `;
+            const chk = item.querySelector('.expense-selection-check');
+            if (chk) chk.onchange = updateModalSelectionTotal;
             container.appendChild(item);
         });
     }
+    updateModalSelectionTotal();
     document.getElementById('receipt-selection-modal').classList.add('active');
 }
 
@@ -1261,6 +1640,8 @@ async function exportSelectedReceiptsPDF() {
         if (!confirm('لا توجد صور للمصروفات المختارة. هل تريد تصدير تقرير نصي فقط؟')) return;
     }
 
+    const selectedTotal = selectedExpenses.reduce((sum, exp) => sum + parseFloat(exp.amount), 0);
+
     let printHTML = `
     <!DOCTYPE html>
     <html dir="rtl">
@@ -1271,14 +1652,14 @@ async function exportSelectedReceiptsPDF() {
             @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap');
             @page { size: A4; margin: 15mm; }
             body { font-family: 'Tajawal', sans-serif; margin: 0; padding: 0; background: #fff; color: #000; }
-            .print-page { page-break-after: always; min-height: 260mm; display: flex; flex-direction: column; padding-bottom: 20px; border-bottom: 1px solid #eee; margin-bottom: 20px; }
-            .header { text-align: center; border-bottom: 2px solid #f59e0b; padding-bottom: 10px; margin-bottom: 20px; }
+            .print-page { page-break-after: always; page-break-inside: avoid; height: 265mm; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; }
+            .header { text-align: center; border-bottom: 2px solid #f59e0b; padding-bottom: 10px; margin-bottom: 15px; flex-shrink: 0; }
             .header h2 { color: #f59e0b; margin: 0; }
-            .info-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+            .info-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; flex-shrink: 0; }
             .info-table th, .info-table td { border: 1px solid #e2e8f0; padding: 10px; text-align: right; }
             .info-table th { background: #f8fafc; color: #64748b; width: 25%; }
-            .img-container { flex: 1; display: flex; justify-content: center; align-items: center; background: #f9fafb; border: 1px dashed #cbd5e1; border-radius: 10px; overflow: hidden; max-height: 180mm; }
-            .img-container img { max-width: 100%; max-height: 100%; object-fit: contain; }
+            .img-container { flex: 1; min-height: 0; display: flex; justify-content: center; align-items: center; padding: 10px; background: #f9fafb; border: 1px dashed #cbd5e1; border-radius: 10px; overflow: hidden; }
+            .img-container img { max-width: 100%; max-height: 100%; width: auto; height: 100%; object-fit: contain; }
             .no-print { display: none; }
             @media print { .no-print { display: none; } }
         </style>
@@ -1291,7 +1672,10 @@ async function exportSelectedReceiptsPDF() {
         <div class="print-page">
             <div class="header">
                 <h2>إثبات مصروف (${index + 1} من ${selectedExpenses.length})</h2>
-                <div style="font-size: 10pt; color: #666;">مشروع: ${appData.projectName}</div>
+                <div style="font-size: 10pt; color: #666; margin-top: 5px;">
+                    مشروع: ${appData.projectName} &nbsp;|&nbsp; 
+                    <strong style="color: #166534;">إجمالي الأرصدة المحددة: ${selectedTotal.toFixed(2)} ${appData.currency}</strong>
+                </div>
             </div>
             <table class="info-table">
                 <tr>

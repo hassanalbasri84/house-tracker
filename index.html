@@ -59,10 +59,23 @@
                     <h1 id="project-title-display">بُنيان</h1>
                     <p id="current-view-title">نظرة عامة</p>
                 </div>
-                <div class="header-actions">
+                <div class="header-actions" style="display: flex; align-items: center; gap: 8px; position: relative;">
                     <button class="icon-btn" id="add-expense-btn">
                         <ion-icon name="add-outline"></ion-icon>
                     </button>
+                    <button class="icon-btn" id="header-menu-btn" style="background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-primary); cursor: pointer; width: 45px; height: 45px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem;">
+                        <ion-icon name="ellipsis-vertical"></ion-icon>
+                    </button>
+                    <div id="header-dropdown-menu" class="dropdown-menu" style="display: none; position: absolute; left: 0; top: 100%; margin-top: 8px; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,0.4); padding: 8px 0; min-width: 220px; z-index: 1000; flex-direction: column; overflow: hidden;">
+                        <button id="pwa-install-btn" class="dropdown-item" style="display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 18px; background: none; border: none; color: var(--text-primary); font-family: inherit; font-size: 0.95rem; cursor: pointer; text-align: right; border-bottom: 1px solid var(--border-color);">
+                            <ion-icon name="download-outline" style="font-size: 1.3rem; color: var(--accent-color);"></ion-icon>
+                            <span>تثبيت التطبيق (PWA)</span>
+                        </button>
+                        <button id="theme-toggle-btn" class="dropdown-item" style="display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 18px; background: none; border: none; color: var(--text-primary); font-family: inherit; font-size: 0.95rem; cursor: pointer; text-align: right;">
+                            <ion-icon name="color-palette-outline" style="font-size: 1.3rem; color: var(--accent-color);"></ion-icon>
+                            <span id="theme-toggle-text">تفعيل الوضع الفاتح</span>
+                        </button>
+                    </div>
                 </div>
             </header>
 
@@ -125,6 +138,7 @@
             </section>
 
             <section id="view-settings" class="view">
+                <div id="settings-undo-banner"></div>
                 <div class="settings-group">
                     <h3>إدارة المشاريع (الفلل)</h3>
                     <div class="setting-item">
@@ -195,19 +209,33 @@
                     </div>
                 </div>
 
-                <div class="settings-group">
-                    <h3>سلة المحذوفات</h3>
-                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 10px;">استرجاع ما تم حذفه مؤخراً</p>
-                    <div id="trash-list" style="display: flex; flex-direction: column; gap: 8px;">
-                        <!-- Trash items will be injected here -->
+                <div class="settings-group accordion-group" style="padding: 0; overflow: hidden;">
+                    <div class="accordion-header settings-header" onclick="toggleAccordion(this)" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; padding: 20px;">
+                        <div>
+                            <h3 style="margin: 0; display: inline-block;">سلة المحذوفات</h3>
+                            <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 2px 0 0;">استرجاع ما تم حذفه مؤخراً</p>
+                        </div>
+                        <ion-icon name="chevron-down-outline" class="arrow" style="transition: transform 0.3s; color: var(--accent-color); font-size: 1.2rem;"></ion-icon>
+                    </div>
+                    <div class="accordion-content" style="display: none; padding: 0 20px 20px;">
+                        <div id="trash-list" style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px;">
+                            <!-- Trash items will be injected here -->
+                        </div>
                     </div>
                 </div>
 
-                <div class="settings-group">
-                    <h3>النسخ الاحتياطية التلقائية</h3>
-                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 10px;">يتم حفظ نسخة تلقائياً كل 5 إضافات (آخر 10 نسخ)</p>
-                    <div id="auto-backups-list" style="display: flex; flex-direction: column; gap: 8px;">
-                        <!-- Backups will be injected here -->
+                <div class="settings-group accordion-group" style="padding: 0; overflow: hidden;">
+                    <div class="accordion-header settings-header" onclick="toggleAccordion(this)" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; padding: 20px;">
+                        <div>
+                            <h3 style="margin: 0; display: inline-block;">النسخ الاحتياطية التلقائية</h3>
+                            <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 2px 0 0;">يتم حفظ نسخة تلقائياً كل 5 إضافات (آخر 10 نسخ)</p>
+                        </div>
+                        <ion-icon name="chevron-down-outline" class="arrow" style="transition: transform 0.3s; color: var(--accent-color); font-size: 1.2rem;"></ion-icon>
+                    </div>
+                    <div class="accordion-content" style="display: none; padding: 0 20px 20px;">
+                        <div id="auto-backups-list" style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px;">
+                            <!-- Backups will be injected here -->
+                        </div>
                     </div>
                 </div>
 
@@ -230,7 +258,11 @@
                 <div id="selection-list-container" style="flex: 1; overflow-y: auto; padding: 10px;">
                     <!-- List of expenses with checkboxes -->
                 </div>
-                <div class="modal-footer" style="padding: 15px; border-top: 1px solid var(--border-color);">
+                <div class="modal-footer" style="padding: 15px; border-top: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 1.1rem; padding: 5px 10px; background: rgba(var(--accent-color-rgb), 0.1); border-radius: 8px;">
+                        <span>إجمالي الأرصدة المحددة:</span>
+                        <span id="modal-selection-total" style="color: var(--accent-color);">0.00</span>
+                    </div>
                     <button class="action-btn" id="modal-confirm-export" style="width: 100%; background: #10b981; color: white;">
                         <ion-icon name="document-outline"></ion-icon>
                         <span>بدء التصدير الآن</span>

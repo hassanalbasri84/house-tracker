@@ -11,6 +11,24 @@
     --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
+body.light-theme {
+    --bg-color: #f1f5f9;
+    --card-bg: #ffffff;
+    --accent-color: #d97706; /* Rich Amber */
+    --success-color: #059669;
+    --text-primary: #0f172a;
+    --text-secondary: #64748b;
+    --border-color: #cbd5e1;
+    --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02);
+}
+
+.dropdown-item {
+    transition: background 0.2s;
+}
+.dropdown-item:hover {
+    background-color: rgba(245, 158, 11, 0.1) !important;
+}
+
 .stage-total {
     font-size: 0.75rem;
     color: var(--accent-color);
@@ -116,9 +134,20 @@ body {
 /* Dashboard Cards */
 .stats-grid {
     margin-bottom: 2rem;
-    display: grid;
-    gap: 15px;
-    grid-template-columns: 1fr;
+}
+
+.chart-container {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    padding: 1.5rem;
+    border-radius: 20px;
+    margin-bottom: 1.5rem;
+    height: 300px;
+    position: relative;
+}
+
+.report-details {
+    padding-bottom: 100px;
 }
 
 .stat-card {
